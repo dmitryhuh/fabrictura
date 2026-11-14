@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import Avatar from "@/components/Avatar";
 import { Me, MeContext } from "@/components/MeContext";
+import Logo from "@/components/Logo";
 
 type Item = { href: string; label: string; icon: LucideIcon; soon?: boolean };
 
