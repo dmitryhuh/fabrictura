@@ -16,32 +16,39 @@ export async function POST(req: Request) {
     auth: { persistSession: false },
   });
 
-  let email: string = String(identifier).trim();
+  const fail = () =>
+    // одно и то же сообщение, чтобы нельзя было угадывать существующие логины
+    NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
+
+  let email = String(identifier).trim();
 
   // если это не почта, ищем почту по логину
   if (!email.includes("@")) {
     const { data: profile } = await admin
       .from("profiles")
       .select("id")
-      .eq("username", email)
+      .eq("username", email.toLowerCase())
       .maybeSingle();
+    if (!profile) return fail();
 
-    if (profile) {
-      const { data } = await admin.auth.admin.getUserById(profile.id);
-      email = data.user?.email ?? "";
-    } else {
-      email = "";
+    const { data } = await admin.auth.admin.getUserById(profile.id);
+    email = data.user?.email ?? "";
+    if (!email) return fail();
+  }
+
+  const { data, error } = await anon.auth.signInWithPassword({ email, password });
+
+  if (error) {
+    if (error.message.toLowerCase().includes("not confirmed")) {
+      return NextResponse.json(
+        { error: "Почта не подтверждена", needConfirm: true, email },
+        { status: 403 }
+      );
     }
+    return fail();
   }
 
-  const { data, error } = email
-    ? await anon.auth.signInWithPassword({ email, password })
-    : { data: null, error: true };
-
-  if (error || !data?.session) {
-    // одно и то же сообщение, чтобы нельзя было угадывать существующие логины
-    return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
-  }
+  if (!data.session) return fail();
 
   return NextResponse.json({
     access_token: data.session.access_token,

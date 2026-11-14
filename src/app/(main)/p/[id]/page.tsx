@@ -1,0 +1,179 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { ArrowLeft, Trash2 } from "lucide-react";
+import { supabase } from "@/lib/supabase/client";
+import { useMe } from "@/components/MeContext";
+import Avatar from "@/components/Avatar";
+import PostCard from "@/components/PostCard";
+import { Post, POST_SELECT, timeAgo } from "@/lib/posts";
+import { usePostActions } from "@/lib/usePostActions";
+
+type Comment = {
+  id: string;
+  content: string;
+  created_at: string;
+  author_id: string;
+  profiles: {
+    username: string;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+};
+
+export default function PostPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { me } = useMe();
+
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const [p, c] = await Promise.all([
+      supabase.from("posts").select(POST_SELECT).eq("id", id).maybeSingle(),
+      supabase
+        .from("comments")
+        .select(
+          "id, content, created_at, author_id, profiles!author_id(username, display_name, avatar_url)"
+        )
+        .eq("post_id", id)
+        .order("created_at", { ascending: true }),
+    ]);
+
+    if (!p.data) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    setPosts([p.data as unknown as Post]);
+    setComments((c.data ?? []) as unknown as Comment[]);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const { toggleLike, removePost } = usePostActions(me.id, setPosts, load, setError);
+
+  async function handleDeletePost(post: Post) {
+    const ok = await removePost(post);
+    if (ok) router.replace("/feed");
+  }
+
+  async function sendComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setSending(true);
+    setError("");
+
+    const { error } = await supabase
+      .from("comments")
+      .insert({ post_id: id, author_id: me.id, content: text.trim() });
+
+    setSending(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setText("");
+    await load();
+  }
+
+  async function deleteComment(commentId: string) {
+    const { error } = await supabase.from("comments").delete().eq("id", commentId);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    await load();
+  }
+
+  if (loading) return <p className="py-16 text-center text-muted">Загрузка...</p>;
+  if (notFound || !posts[0])
+    return <p className="py-16 text-center text-muted">Пост не найден.</p>;
+
+  const post = posts[0];
+  const name = me.display_name || me.username;
+
+  return (
+    <div className="space-y-5">
+      <Link
+        href="/feed"
+        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
+      >
+        <ArrowLeft size={16} /> К ленте
+      </Link>
+
+      <PostCard post={post} myId={me.id} onLike={toggleLike} onDelete={handleDeletePost} />
+
+      <form
+        onSubmit={sendComment}
+        className="flex items-start gap-3 rounded-3xl border border-line bg-white p-4 shadow-sm"
+      >
+        <Avatar url={me.avatar_url} name={name} size={44} />
+        <textarea
+          className="flex-1 resize-none bg-transparent pt-2 outline-none placeholder:text-muted"
+          rows={2}
+          maxLength={300}
+          placeholder="Написать комментарий..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button disabled={sending || !text.trim()} className="btn-primary">
+          Отправить
+        </button>
+      </form>
+
+      {error && <p className="text-sm text-red-500">{error}</p>}
+
+      {comments.length === 0 && (
+        <p className="py-6 text-center text-muted">Комментариев пока нет.</p>
+      )}
+
+      {comments.map((c) => {
+        const username = c.profiles?.username ?? "";
+        const cname = c.profiles?.display_name || username || "?";
+        const canDelete = c.author_id === me.id || post.author_id === me.id;
+        return (
+          <div
+            key={c.id}
+            className="flex gap-3 rounded-3xl border border-line bg-white p-4 shadow-sm"
+          >
+            <Link href={`/u/${username}`}>
+              <Avatar url={c.profiles?.avatar_url} name={cname} size={44} />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <Link href={`/u/${username}`} className="min-w-0 truncate">
+                  <span className="font-semibold hover:underline">{cname}</span>
+                  <span className="text-sm text-muted">
+                    {" "}@{username} · {timeAgo(c.created_at)}
+                  </span>
+                </Link>
+                {canDelete && (
+                  <button
+                    onClick={() => deleteComment(c.id)}
+                    aria-label="Удалить комментарий"
+                    className="text-muted transition hover:text-red-500"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 whitespace-pre-wrap break-words">{c.content}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

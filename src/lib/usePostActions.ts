@@ -33,13 +33,23 @@ export function usePostActions(
     if (error) reload();
   }
 
-  async function removePost(id: string) {
-    const { error } = await supabase.from("posts").delete().eq("id", id);
+  async function removePost(post: Post): Promise<boolean> {
+    const { error } = await supabase.from("posts").delete().eq("id", post.id);
     if (error) {
       onError(error.message);
-      return;
+      return false;
     }
-    setPosts((prev) => prev.filter((p) => p.id !== id));
+    if (post.image_url) {
+      const marker = "/post-images/";
+      const i = post.image_url.indexOf(marker);
+      if (i !== -1) {
+        await supabase.storage
+          .from("post-images")
+          .remove([post.image_url.slice(i + marker.length)]);
+      }
+    }
+    setPosts((prev) => prev.filter((p) => p.id !== post.id));
+    return true;
   }
 
   return { toggleLike, removePost };

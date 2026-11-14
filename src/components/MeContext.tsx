@@ -12,6 +12,8 @@ export type Me = {
 export const MeContext = createContext<{
   me: Me;
   refresh: () => Promise<void>;
+  unread: number;
+  refreshUnread: () => Promise<void>;
 } | null>(null);
 
 export function useMe() {

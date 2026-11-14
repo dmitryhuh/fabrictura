@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Heart, Trash2 } from "lucide-react";
+import { Heart, MessageSquare, Trash2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { Post, timeAgo } from "@/lib/posts";
 
@@ -7,53 +7,76 @@ type Props = {
   post: Post;
   myId: string;
   onLike: (post: Post) => void;
-  onDelete: (id: string) => void;
+  onDelete: (post: Post) => void;
 };
 
 export default function PostCard({ post, myId, onLike, onDelete }: Props) {
   const liked = post.likes.some((l) => l.user_id === myId);
   const username = post.profiles?.username ?? "";
   const name = post.profiles?.display_name || username || "?";
+  const commentsCount = post.comments?.[0]?.count ?? 0;
 
   return (
-    <article className="bg-white border border-line rounded-2xl p-4 shadow-sm transition hover:shadow-md">
-      <div className="flex gap-3">
+    <article className="rounded-3xl border border-line bg-white p-5 shadow-sm transition hover:shadow-md">
+      <div className="flex gap-4">
         <Link href={`/u/${username}`}>
-          <Avatar url={post.profiles?.avatar_url} name={name} size={44} />
+          <Avatar url={post.profiles?.avatar_url} name={name} size={52} />
         </Link>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <Link href={`/u/${username}`} className="min-w-0 truncate">
               <span className="font-semibold hover:underline">{name}</span>
-              <span className="text-muted text-sm">
+              <span className="text-sm text-muted">
                 {" "}@{username} · {timeAgo(post.created_at)}
               </span>
             </Link>
             {post.author_id === myId && (
               <button
-                onClick={() => onDelete(post.id)}
+                onClick={() => onDelete(post)}
                 aria-label="Удалить пост"
-                className="text-muted hover:text-red-500 transition"
+                className="text-muted transition hover:text-red-500"
               >
-                <Trash2 size={16} />
+                <Trash2 size={18} />
               </button>
             )}
           </div>
 
-          <p className="mt-1 whitespace-pre-wrap break-words">{post.content}</p>
+          {post.content && (
+            <p className="mt-1 whitespace-pre-wrap break-words text-[17px] leading-relaxed">
+              {post.content}
+            </p>
+          )}
 
-          <button
-            onClick={() => onLike(post)}
-            className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition ${
-              liked
-                ? "bg-brand-soft border-brand text-brand-strong"
-                : "border-line text-muted hover:bg-brand-soft"
-            }`}
-          >
-            <Heart size={16} className={liked ? "fill-current" : ""} />
-            {post.likes.length}
-          </button>
+          {post.image_url && (
+            <img
+              src={post.image_url}
+              alt=""
+              loading="lazy"
+              className="mt-3 max-h-[32rem] w-full rounded-2xl border border-line object-cover"
+            />
+          )}
+
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              onClick={() => onLike(post)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm transition ${
+                liked
+                  ? "border-brand bg-brand-soft text-brand-strong"
+                  : "border-line text-muted hover:bg-brand-soft"
+              }`}
+            >
+              <Heart size={17} className={liked ? "fill-current" : ""} />
+              {post.likes.length}
+            </button>
+            <Link
+              href={`/p/${post.id}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm text-muted transition hover:bg-brand-soft"
+            >
+              <MessageSquare size={17} />
+              {commentsCount}
+            </Link>
+          </div>
         </div>
       </div>
     </article>

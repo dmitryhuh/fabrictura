@@ -1,14 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
-import { Camera } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { Camera, Cake } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
+import BirthDatePicker from "@/components/BirthDatePicker";
 import { Post, POST_SELECT } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
+import { checkImage, imageExt } from "@/lib/images";
+import { birthError, formatBirth } from "@/lib/birthday";
 
 type Profile = {
   id: string;
@@ -16,10 +19,12 @@ type Profile = {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  birth_date: string | null;
 };
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
+  const router = useRouter();
   const { me, refresh } = useMe();
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -29,8 +34,10 @@ export default function ProfilePage() {
   const [following, setFollowing] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [userInput, setUserInput] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [bioInput, setBioInput] = useState("");
+  const [birthInput, setBirthInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -38,7 +45,7 @@ export default function ProfilePage() {
   const load = useCallback(async () => {
     const { data: p } = await supabase
       .from("profiles")
-      .select("id, username, display_name, avatar_url, bio")
+      .select("id, username, display_name, avatar_url, bio, birth_date")
       .eq("username", username)
       .maybeSingle();
 
@@ -99,48 +106,66 @@ export default function ProfilePage() {
   }
 
   function startEdit() {
+    setUserInput(profile?.username ?? "");
     setNameInput(profile?.display_name ?? "");
     setBioInput(profile?.bio ?? "");
+    setBirthInput(profile?.birth_date ?? "");
     setError("");
     setEditing(true);
   }
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
     setError("");
 
+    const newName = userInput.trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,20}$/.test(newName)) {
+      setError("Логин: 3–20 символов, латиница, цифры и _");
+      return;
+    }
+    if (birthInput) {
+      const problem = birthError(birthInput);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+
+    setSaving(true);
     const { error } = await supabase
       .from("profiles")
       .update({
+        username: newName,
         display_name: nameInput.trim() || null,
         bio: bioInput.trim() || null,
+        birth_date: birthInput || null,
       })
       .eq("id", me.id);
-
     setSaving(false);
+
     if (error) {
-      setError(error.message);
+      if (error.code === "23505") setError("Этот логин уже занят");
+      else if (error.message.includes("profiles_birth_check"))
+        setError("Недопустимая дата рождения");
+      else setError(error.message);
       return;
     }
+
     setEditing(false);
-    await Promise.all([load(), refresh()]);
+    await refresh();
+    if (newName !== profile?.username) router.replace(`/u/${newName}`);
+    else await load();
   }
 
   async function uploadAvatar(file: File) {
     setError("");
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setError("Нужна картинка JPG, PNG или WebP");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Файл больше 2 МБ");
+    const problem = checkImage(file, 2);
+    if (problem) {
+      setError(problem);
       return;
     }
 
-    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
-    const path = `${me.id}/${Date.now()}.${ext}`;
-
+    const path = `${me.id}/${Date.now()}.${imageExt(file.type)}`;
     const { error: upErr } = await supabase.storage
       .from("avatars")
       .upload(path, file, { contentType: file.type });
@@ -162,34 +187,34 @@ export default function ProfilePage() {
   }
 
   if (notFound) {
-    return <p className="text-center text-muted py-16">Такого пользователя нет.</p>;
+    return <p className="py-16 text-center text-muted">Такого пользователя нет.</p>;
   }
   if (!profile) {
-    return <p className="text-center text-muted py-16">Загрузка...</p>;
+    return <p className="py-16 text-center text-muted">Загрузка...</p>;
   }
 
   const isMe = profile.id === me.id;
   const name = profile.display_name || profile.username;
 
   return (
-    <div className="space-y-4">
-      <section className="bg-white border border-line rounded-2xl overflow-hidden shadow-sm">
-        <div className="h-28 bg-linear-to-r from-brand to-brand-deep" />
+    <div className="space-y-5">
+      <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm">
+        <div className="h-36 bg-linear-to-r from-brand to-brand-deep" />
 
-        <div className="px-5 pb-5">
-          <div className="flex items-end justify-between -mt-12">
+        <div className="px-6 pb-6">
+          <div className="-mt-14 flex items-end justify-between">
             <div className="relative">
               <div className="rounded-full ring-4 ring-white">
-                <Avatar url={profile.avatar_url} name={name} size={96} />
+                <Avatar url={profile.avatar_url} name={name} size={112} />
               </div>
               {isMe && (
                 <>
                   <button
                     onClick={() => fileRef.current?.click()}
                     aria-label="Сменить аватарку"
-                    className="absolute bottom-0 right-0 grid place-items-center w-8 h-8 rounded-full bg-brand-strong text-white ring-2 ring-white hover:bg-brand-hover"
+                    className="absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full bg-brand-strong text-white ring-2 ring-white hover:bg-brand-hover"
                   >
-                    <Camera size={16} />
+                    <Camera size={17} />
                   </button>
                   <input
                     ref={fileRef}
@@ -213,17 +238,24 @@ export default function ProfilePage() {
                 </button>
               )
             ) : (
-              <button
-                onClick={toggleFollow}
-                className={isFollowing ? "btn-ghost" : "btn-primary"}
-              >
+              <button onClick={toggleFollow} className={isFollowing ? "btn-ghost" : "btn-primary"}>
                 {isFollowing ? "Вы подписаны" : "Подписаться"}
               </button>
             )}
           </div>
 
           {editing ? (
-            <form onSubmit={saveProfile} className="mt-4 space-y-3">
+            <form onSubmit={saveProfile} className="mt-5 space-y-3">
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">@</span>
+                <input
+                  className="input pl-9"
+                  maxLength={20}
+                  placeholder="Логин"
+                  value={userInput}
+                  onChange={(e) => setUserInput(e.target.value.toLowerCase().replace(/\s/g, ""))}
+                />
+              </div>
               <input
                 className="input"
                 maxLength={30}
@@ -239,6 +271,10 @@ export default function ProfilePage() {
                 value={bioInput}
                 onChange={(e) => setBioInput(e.target.value)}
               />
+              <BirthDatePicker value={birthInput} onChange={setBirthInput} />
+
+              {error && <p className="text-sm text-red-500">{error}</p>}
+
               <div className="flex gap-2">
                 <button disabled={saving} className="btn-primary">
                   {saving ? "Сохраняем..." : "Сохранить"}
@@ -249,25 +285,30 @@ export default function ProfilePage() {
               </div>
             </form>
           ) : (
-            <div className="mt-3">
-              <h1 className="text-xl font-bold">{name}</h1>
-              <p className="text-muted text-sm">@{profile.username}</p>
-              {profile.bio && <p className="mt-3 whitespace-pre-wrap">{profile.bio}</p>}
+            <div className="mt-4">
+              <h1 className="text-2xl font-bold">{name}</h1>
+              <p className="text-muted">@{profile.username}</p>
+              {profile.bio && (
+                <p className="mt-3 whitespace-pre-wrap text-[17px]">{profile.bio}</p>
+              )}
+              {profile.birth_date && (
+                <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
+                  <Cake size={16} />
+                  {formatBirth(profile.birth_date)}
+                </p>
+              )}
               <p className="mt-4 text-sm text-muted">
                 <b className="text-ink">{followers}</b> подписчиков ·{" "}
                 <b className="text-ink">{following}</b> подписок ·{" "}
                 <b className="text-ink">{posts.length}</b> постов
               </p>
+              {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
             </div>
           )}
-
-          {error && <p className="mt-3 text-red-500 text-sm">{error}</p>}
         </div>
       </section>
 
-      {posts.length === 0 && (
-        <p className="text-center text-muted py-8">Постов пока нет.</p>
-      )}
+      {posts.length === 0 && <p className="py-8 text-center text-muted">Постов пока нет.</p>}
 
       {posts.map((post) => (
         <PostCard

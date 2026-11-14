@@ -3,16 +3,18 @@ export type Post = {
   content: string;
   created_at: string;
   author_id: string;
+  image_url: string | null;
   profiles: {
     username: string;
     display_name: string | null;
     avatar_url: string | null;
   } | null;
   likes: { user_id: string }[];
+  comments: { count: number }[];
 };
 
 export const POST_SELECT =
-  "id, content, created_at, author_id, profiles!author_id(username, display_name, avatar_url), likes(user_id)";
+  "id, content, created_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url), likes(user_id), comments(count)";
 
 export function timeAgo(iso: string) {
   const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);

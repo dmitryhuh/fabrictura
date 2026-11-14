@@ -3,19 +3,29 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, User, MessageCircle, Gift, LogOut } from "lucide-react";
+import { Home, Search, Bell, MessageCircle, Gift, User, LogOut } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import Avatar from "@/components/Avatar";
 import Logo from "@/components/Logo";
 import { Me, MeContext } from "@/components/MeContext";
 
-type Item = { href: string; label: string; icon: LucideIcon; soon?: boolean };
+type Item = {
+  key: string;
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  avatar?: boolean;
+  soon?: boolean;
+  badge?: number;
+};
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
+  const [unread, setUnread] = useState(0);
+  const myId = me?.id;
 
   const refresh = useCallback(async () => {
     const {
@@ -37,6 +47,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
+  const refreshUnread = useCallback(async () => {
+    if (!myId) return;
+    const { count } = await supabase
+      .from("notifications")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", myId)
+      .eq("read", false);
+    setUnread(count ?? 0);
+  }, [myId]);
+
+  useEffect(() => {
+    refreshUnread();
+    const t = setInterval(refreshUnread, 30000);
+    return () => clearInterval(t);
+  }, [refreshUnread, pathname]);
+
   async function logout() {
     await supabase.auth.signOut();
     router.replace("/login");
@@ -50,100 +76,131 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const items: Item[] = [
-    { href: "/feed", label: "Лента", icon: Home },
-    { href: `/u/${me.username}`, label: "Профиль", icon: User },
-    { href: "#", label: "Чаты", icon: MessageCircle, soon: true },
-    { href: "#", label: "Подарки", icon: Gift, soon: true },
-  ];
-
   const name = me.display_name || me.username;
 
-  return (
-    <MeContext.Provider value={{ me, refresh }}>
-      <div className="min-h-screen bg-canvas text-ink md:flex">
-        {/* Боковое меню (компьютер) */}
-        <aside className="hidden md:flex md:w-64 shrink-0 flex-col justify-between sticky top-0 h-screen border-r border-line bg-white p-4">
-          <div>
-            <Link href="/feed" className="flex items-center gap-2 px-2 py-3 mb-4">
-              <Logo size={36} />
-              <span className="text-xl font-bold tracking-tight">Fabrictura</span>
-            </Link>
+  const items: Item[] = [
+    { key: "feed", href: "/feed", label: "Лента", icon: Home },
+    { key: "search", href: "/search", label: "Поиск", icon: Search },
+    { key: "chats", href: "#", label: "Чаты", icon: MessageCircle, soon: true },
+    { key: "gifts", href: "#", label: "Подарки", icon: Gift, soon: true },
+    { key: "notifications", href: "/notifications", label: "Уведомления", icon: Bell, badge: unread },
+    { key: "profile", href: `/u/${me.username}`, label: "Профиль", icon: User, avatar: true },
+  ];
 
-            <nav className="space-y-1">
-              {items.map(({ href, label, icon: Icon, soon }) => {
-                const active = !soon && pathname === href;
-                const cls = `flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium transition ${
-                  active ? "bg-brand-soft text-brand-strong" : "hover:bg-canvas"
-                } ${soon ? "opacity-50 cursor-default" : ""}`;
-                return soon ? (
-                  <div key={label} className={cls}>
-                    <Icon size={20} />
-                    {label}
-                    <span className="ml-auto text-[10px] uppercase tracking-wide bg-canvas text-muted rounded-full px-2 py-0.5">
+  const pill = (active: boolean, soon?: boolean) =>
+    `relative flex items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-medium transition ${
+      active
+        ? "bg-linear-to-r from-brand to-brand-strong text-white shadow-sm"
+        : soon
+        ? "text-ink opacity-50 cursor-default"
+        : "text-ink hover:bg-brand-soft"
+    }`;
+
+  return (
+    <MeContext.Provider value={{ me, refresh, unread, refreshUnread }}>
+      <div className="min-h-screen bg-canvas text-ink">
+        {/* Плавающая навигация (компьютер) */}
+        <aside className="fixed left-4 top-1/2 z-20 hidden w-52 -translate-y-1/2 flex-col gap-1 rounded-[2rem] border border-line bg-white/90 p-2 shadow-lg backdrop-blur md:flex">
+          <Link href="/feed" className="flex items-center justify-center py-3">
+            <Logo size={34} />
+          </Link>
+
+          <nav className="flex flex-col gap-1">
+            {items.map((it) => {
+              const active = !it.soon && pathname === it.href;
+              const Icon = it.icon;
+              const inner = (
+                <>
+                  {it.avatar ? (
+                    <span className={`rounded-full ${active ? "ring-2 ring-white" : ""}`}>
+                      <Avatar url={me.avatar_url} name={name} size={24} />
+                    </span>
+                  ) : (
+                    <Icon size={22} />
+                  )}
+                  <span>{it.label}</span>
+                  {it.soon && (
+                    <span className="ml-auto rounded-full bg-canvas px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
                       скоро
                     </span>
-                  </div>
-                ) : (
-                  <Link key={label} href={href} className={cls}>
-                    <Icon size={20} />
-                    {label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+                  )}
+                  {!!it.badge && (
+                    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[11px] font-semibold text-white">
+                      {it.badge > 9 ? "9+" : it.badge}
+                    </span>
+                  )}
+                </>
+              );
+              return it.soon ? (
+                <div key={it.key} className={pill(false, true)}>
+                  {inner}
+                </div>
+              ) : (
+                <Link key={it.key} href={it.href} className={pill(active)}>
+                  {inner}
+                </Link>
+              );
+            })}
+          </nav>
 
-          <div className="flex items-center gap-3 rounded-xl border border-line p-3">
-            <Avatar url={me.avatar_url} name={name} size={38} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{name}</p>
-              <p className="truncate text-xs text-muted">@{me.username}</p>
-            </div>
+          <div className="mt-1 border-t border-line pt-1">
             <button
               onClick={logout}
-              aria-label="Выйти"
-              className="text-muted hover:text-red-500 transition"
+              className="flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-medium text-muted transition hover:bg-red-50 hover:text-red-500"
             >
-              <LogOut size={18} />
+              <LogOut size={22} />
+              Выйти
             </button>
           </div>
         </aside>
 
-        <div className="flex-1 min-w-0">
+        <div className="md:pl-64">
           {/* Верхняя полоса (телефон) */}
-          <header className="md:hidden sticky top-0 z-10 flex items-center justify-between bg-white/90 backdrop-blur border-b border-line px-4 py-3">
-            <span className="flex items-center gap-2 font-bold">
-              <Logo size={32} />
-              Fabrictura
-            </span>
+          <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-white/90 px-4 py-3 backdrop-blur md:hidden">
+            <Logo size={32} />
             <button onClick={logout} aria-label="Выйти" className="text-muted">
-              <LogOut size={20} />
+              <LogOut size={22} />
             </button>
           </header>
 
-          <main className="max-w-xl mx-auto p-4 pb-24 md:pb-8">{children}</main>
+          <main className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-8 md:pb-10">
+            {children}
+          </main>
         </div>
 
-        {/* Нижнее меню (телефон) */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 z-10 flex justify-around bg-white border-t border-line py-2">
-          {items.map(({ href, label, icon: Icon, soon }) => {
-            const active = !soon && pathname === href;
-            const cls = `flex flex-col items-center gap-0.5 text-[11px] font-medium ${
-              active ? "text-brand-strong" : "text-muted"
-            } ${soon ? "opacity-40" : ""}`;
-            return soon ? (
-              <div key={label} className={cls}>
-                <Icon size={22} />
-                {label}
-              </div>
-            ) : (
-              <Link key={label} href={href} className={cls}>
-                <Icon size={22} />
-                {label}
-              </Link>
-            );
-          })}
+        {/* Нижняя навигация (телефон) */}
+        <nav className="fixed inset-x-4 bottom-3 z-20 flex justify-around rounded-full border border-line bg-white/95 p-1.5 shadow-lg backdrop-blur md:hidden">
+          {items
+            .filter((it) => !it.soon)
+            .map((it) => {
+              const active = pathname === it.href;
+              const Icon = it.icon;
+              return (
+                <Link
+                  key={it.key}
+                  href={it.href}
+                  aria-label={it.label}
+                  className={`relative grid h-11 w-11 place-items-center rounded-full transition ${
+                    active
+                      ? "bg-linear-to-r from-brand to-brand-strong text-white"
+                      : "text-muted"
+                  }`}
+                >
+                  {it.avatar ? (
+                    <span className={`rounded-full ${active ? "ring-2 ring-white" : ""}`}>
+                      <Avatar url={me.avatar_url} name={name} size={26} />
+                    </span>
+                  ) : (
+                    <Icon size={22} />
+                  )}
+                  {!!it.badge && (
+                    <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                      {it.badge > 9 ? "9+" : it.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
         </nav>
       </div>
     </MeContext.Provider>

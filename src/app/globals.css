@@ -29,3 +29,14 @@ body {
     @apply rounded-xl border border-line bg-white px-4 py-2 text-sm font-medium transition hover:bg-brand-soft;
   }
 }
+
+@keyframes step-in-right {
+  from { opacity: 0; transform: translateX(36px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes step-in-left {
+  from { opacity: 0; transform: translateX(-36px); }
+  to   { opacity: 1; transform: none; }
+}
+.step-forward { animation: step-in-right 0.35s ease both; }
+.step-back { animation: step-in-left 0.35s ease both; }
