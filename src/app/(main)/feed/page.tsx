@@ -6,15 +6,19 @@ import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
-import { Post, POST_SELECT } from "@/lib/posts";
+import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
-import { checkImage, imageExt } from "@/lib/images";
+import { checkImage, compressImage, imageExt } from "@/lib/images";
+
+const PAGE = 20;
 
 export default function FeedPage() {
   const { me } = useMe();
   const [tab, setTab] = useState<"all" | "following">("all");
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -22,49 +26,88 @@ export default function FeedPage() {
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const loadPosts = useCallback(async () => {
-    let query = supabase
-      .from("posts")
-      .select(POST_SELECT)
-      .order("created_at", { ascending: false })
-      .limit(50);
+  const fetchPage = useCallback(
+    async (before?: string): Promise<{ rows: Post[]; more: boolean } | null> => {
+      let query = supabase
+        .from("posts")
+        .select(POST_SELECT)
+        .order("created_at", { ascending: false })
+        .limit(PAGE);
 
-    if (tab === "following") {
-      const { data: f } = await supabase
-        .from("follows")
-        .select("following_id")
-        .eq("follower_id", me.id);
-      const ids = (f ?? []).map((r) => r.following_id);
-      if (ids.length === 0) {
-        setPosts([]);
-        setLoading(false);
-        return;
+      if (before) query = query.lt("created_at", before);
+
+      if (tab === "following") {
+        const { data: f } = await supabase
+          .from("follows")
+          .select("following_id")
+          .eq("follower_id", me.id);
+        const ids = (f ?? []).map((r) => r.following_id);
+        if (ids.length === 0) return { rows: [], more: false };
+        query = query.in("author_id", ids);
       }
-      query = query.in("author_id", ids);
-    }
 
-    const { data, error } = await query;
-    if (error) setError(error.message);
-    else setPosts(data as unknown as Post[]);
+      const { data, error } = await query;
+      if (error) {
+        setError(error.message);
+        return null;
+      }
+      const rows = await withLiked(data as unknown as RawPost[], me.id);
+      return { rows, more: rows.length === PAGE };
+    },
+    [tab, me.id]
+  );
+
+  const loadPosts = useCallback(async () => {
+    const res = await fetchPage();
+    if (res) {
+      setPosts(res.rows);
+      setHasMore(res.more);
+    }
     setLoading(false);
-  }, [tab, me.id]);
+  }, [fetchPage]);
 
   useEffect(() => {
     loadPosts();
   }, [loadPosts]);
 
+  async function loadMore() {
+    const last = posts[posts.length - 1];
+    if (!last) return;
+    setLoadingMore(true);
+    const res = await fetchPage(last.created_at);
+    if (res) {
+      setPosts((prev) => [...prev, ...res.rows.filter((r) => !prev.some((p) => p.id === r.id))]);
+      setHasMore(res.more);
+    }
+    setLoadingMore(false);
+  }
+
   const { toggleLike, removePost } = usePostActions(me.id, setPosts, loadPosts, setError);
 
-  function pickFile(f: File) {
-    const problem = checkImage(f, 5);
+  async function pickFile(f: File) {
+    const problem = checkImage(f, 20);
     if (problem) {
       setError(problem);
       return;
     }
     setError("");
+
+    let small: File;
+    try {
+      small = await compressImage(f, 1600);
+    } catch {
+      setError("Не удалось обработать картинку");
+      return;
+    }
+    const tooBig = checkImage(small, 5);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
+
     if (preview) URL.revokeObjectURL(preview);
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
+    setFile(small);
+    setPreview(URL.createObjectURL(small));
   }
 
   function clearFile() {
@@ -222,6 +265,16 @@ export default function FeedPage() {
           onDelete={removePost}
         />
       ))}
+
+      {!loading && hasMore && (
+        <button
+          onClick={loadMore}
+          disabled={loadingMore}
+          className="btn-ghost mx-auto block disabled:opacity-50"
+        >
+          {loadingMore ? "Загружаем..." : "Показать ещё"}
+        </button>
+      )}
     </div>
   );
 }

@@ -11,18 +11,13 @@ export function usePostActions(
   onError: (message: string) => void
 ) {
   async function toggleLike(post: Post) {
-    const liked = post.likes.some((l) => l.user_id === myId);
+    const liked = post.liked;
 
     setPosts((prev) =>
       prev.map((p) =>
         p.id !== post.id
           ? p
-          : {
-              ...p,
-              likes: liked
-                ? p.likes.filter((l) => l.user_id !== myId)
-                : [...p.likes, { user_id: myId }],
-            }
+          : { ...p, liked: !liked, likes_count: p.likes_count + (liked ? -1 : 1) }
       )
     );
 

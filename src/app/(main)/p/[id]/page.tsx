@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
-import { Post, POST_SELECT, timeAgo } from "@/lib/posts";
+import { Post, RawPost, POST_SELECT, timeAgo, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
 
 type Comment = {
@@ -53,10 +53,10 @@ export default function PostPage() {
       setLoading(false);
       return;
     }
-    setPosts([p.data as unknown as Post]);
+    setPosts(await withLiked([p.data as unknown as RawPost], me.id));
     setComments((c.data ?? []) as unknown as Comment[]);
     setLoading(false);
-  }, [id]);
+  }, [id, me.id]);
 
   useEffect(() => {
     load();

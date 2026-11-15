@@ -11,10 +11,9 @@ type Props = {
 };
 
 export default function PostCard({ post, myId, onLike, onDelete }: Props) {
-  const liked = post.likes.some((l) => l.user_id === myId);
+  const liked = post.liked;
   const username = post.profiles?.username ?? "";
   const name = post.profiles?.display_name || username || "?";
-  const commentsCount = post.comments?.[0]?.count ?? 0;
 
   return (
     <article className="rounded-3xl border border-line bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -67,14 +66,14 @@ export default function PostCard({ post, myId, onLike, onDelete }: Props) {
               }`}
             >
               <Heart size={17} className={liked ? "fill-current" : ""} />
-              {post.likes.length}
+              {post.likes_count}
             </button>
             <Link
               href={`/p/${post.id}`}
               className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-1.5 text-sm text-muted transition hover:bg-brand-soft"
             >
               <MessageSquare size={17} />
-              {commentsCount}
+              {post.comments_count}
             </Link>
           </div>
         </div>

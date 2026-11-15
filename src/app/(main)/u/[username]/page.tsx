@@ -8,9 +8,9 @@ import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
 import BirthDatePicker from "@/components/BirthDatePicker";
-import { Post, POST_SELECT } from "@/lib/posts";
+import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
-import { checkImage, imageExt } from "@/lib/images";
+import { checkImage, compressImage, imageExt } from "@/lib/images";
 import { birthError, formatBirth } from "@/lib/birthday";
 
 type Profile = {
@@ -75,7 +75,7 @@ export default function ProfilePage() {
     setFollowers(a.count ?? 0);
     setFollowing(b.count ?? 0);
     setIsFollowing((c.count ?? 0) > 0);
-    setPosts((d.data ?? []) as unknown as Post[]);
+    setPosts(await withLiked((d.data ?? []) as unknown as RawPost[], me.id));
   }, [username, me.id]);
 
   useEffect(() => {
@@ -159,16 +159,30 @@ export default function ProfilePage() {
 
   async function uploadAvatar(file: File) {
     setError("");
-    const problem = checkImage(file, 2);
+    const problem = checkImage(file, 20);
     if (problem) {
       setError(problem);
       return;
     }
 
-    const path = `${me.id}/${Date.now()}.${imageExt(file.type)}`;
+    let small: File;
+    try {
+      small = await compressImage(file, 512);
+    } catch {
+      setError("Не удалось обработать картинку");
+      return;
+    }
+    const tooBig = checkImage(small, 2);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
+
+    const oldUrl = profile?.avatar_url;
+    const path = `${me.id}/${Date.now()}.${imageExt(small.type)}`;
     const { error: upErr } = await supabase.storage
       .from("avatars")
-      .upload(path, file, { contentType: file.type });
+      .upload(path, small, { contentType: small.type });
     if (upErr) {
       setError(upErr.message);
       return;
@@ -180,9 +194,20 @@ export default function ProfilePage() {
       .update({ avatar_url: data.publicUrl })
       .eq("id", me.id);
     if (error) {
+      await supabase.storage.from("avatars").remove([path]);
       setError(error.message);
       return;
     }
+
+    // старую аватарку удаляем, чтобы не копились файлы
+    if (oldUrl) {
+      const marker = "/avatars/";
+      const i = oldUrl.indexOf(marker);
+      if (i !== -1) {
+        await supabase.storage.from("avatars").remove([oldUrl.slice(i + marker.length)]);
+      }
+    }
+
     await Promise.all([load(), refresh()]);
   }
 

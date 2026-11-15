@@ -1,6 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
+const WINDOW_MIN = 10;
+const MAX_PER_LOGIN = 5;
+const MAX_PER_IP = 30;
+
 export async function POST(req: Request) {
   const { identifier, password } = await req.json();
 
@@ -16,9 +20,38 @@ export async function POST(req: Request) {
     auth: { persistSession: false },
   });
 
-  const fail = () =>
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || "unknown";
+  const loginKey = `login:${String(identifier).trim().toLowerCase()}`;
+  const ipKey = `ip:${ip}`;
+  const since = new Date(Date.now() - WINDOW_MIN * 60 * 1000).toISOString();
+
+  async function countFails(key: string) {
+    const { count } = await admin
+      .from("login_attempts")
+      .select("*", { count: "exact", head: true })
+      .eq("key", key)
+      .gte("created_at", since);
+    return count ?? 0;
+  }
+
+  const [byLogin, byIp] = await Promise.all([countFails(loginKey), countFails(ipKey)]);
+  if (byLogin >= MAX_PER_LOGIN || byIp >= MAX_PER_IP) {
+    return NextResponse.json(
+      { error: `Слишком много попыток. Попробуйте через ${WINDOW_MIN} минут.` },
+      { status: 429 }
+    );
+  }
+
+  const fail = async () => {
+    await admin.from("login_attempts").insert([{ key: loginKey }, { key: ipKey }]);
+    // заодно чистим старые записи
+    await admin
+      .from("login_attempts")
+      .delete()
+      .lt("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
     // одно и то же сообщение, чтобы нельзя было угадывать существующие логины
-    NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
+    return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
+  };
 
   let email = String(identifier).trim();
 
@@ -49,6 +82,8 @@ export async function POST(req: Request) {
   }
 
   if (!data.session) return fail();
+
+  await admin.from("login_attempts").delete().eq("key", loginKey);
 
   return NextResponse.json({
     access_token: data.session.access_token,
