@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Search, Bell, MessageCircle, Gift, User, LogOut } from "lucide-react";
+import { Home, Search, Bell, MessageCircle, Gift, LogOut } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import Avatar from "@/components/Avatar";
@@ -14,10 +14,25 @@ type Item = {
   key: string;
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   avatar?: boolean;
   soon?: boolean;
   badge?: number;
+};
+
+type Toast = {
+  id: string;
+  name: string;
+  avatar: string | null;
+  text: string;
+  href: string;
+};
+
+const NOTIF_TEXT: Record<string, string> = {
+  like: "оценил(а) вашу запись",
+  comment: "прокомментировал(а) ваш пост",
+  follow: "подписался(лась) на вас",
+  repost: "репостнул(а) вашу запись",
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -25,6 +40,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
   const [unread, setUnread] = useState(0);
+  const [toast, setToast] = useState<Toast | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myId = me?.id;
 
   const refresh = useCallback(async () => {
@@ -59,9 +76,53 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshUnread();
-    const t = setInterval(refreshUnread, 30000);
+    const t = setInterval(refreshUnread, 60000);
     return () => clearInterval(t);
   }, [refreshUnread, pathname]);
+
+  // новые уведомления приходят сразу
+  useEffect(() => {
+    if (!myId) return;
+    const channel = supabase
+      .channel(`notifications-${myId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${myId}` },
+        async (payload) => {
+          const n = payload.new as {
+            id: string;
+            actor_id: string;
+            type: string;
+            post_id: string | null;
+          };
+          refreshUnread();
+          window.dispatchEvent(new Event("notif-new"));
+
+          const { data: actor } = await supabase
+            .from("profiles")
+            .select("username, display_name, avatar_url")
+            .eq("id", n.actor_id)
+            .single();
+          if (!actor) return;
+
+          setToast({
+            id: n.id,
+            name: actor.display_name || actor.username,
+            avatar: actor.avatar_url,
+            text: NOTIF_TEXT[n.type] ?? "новое уведомление",
+            href: n.type === "follow" ? `/u/${actor.username}` : `/p/${n.post_id ?? ""}`,
+          });
+          if (toastTimer.current) clearTimeout(toastTimer.current);
+          toastTimer.current = setTimeout(() => setToast(null), 5000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, [myId, refreshUnread]);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -84,120 +145,128 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { key: "chats", href: "#", label: "Чаты", icon: MessageCircle, soon: true },
     { key: "gifts", href: "#", label: "Подарки", icon: Gift, soon: true },
     { key: "notifications", href: "/notifications", label: "Уведомления", icon: Bell, badge: unread },
-    { key: "profile", href: `/u/${me.username}`, label: "Профиль", icon: User, avatar: true },
+    { key: "profile", href: `/u/${me.username}`, label: "Профиль", avatar: true },
   ];
 
-  const pill = (active: boolean, soon?: boolean) =>
-    `relative flex items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-medium transition ${
-      active
-        ? "bg-linear-to-r from-brand to-brand-strong text-white shadow-sm"
-        : soon
-        ? "text-ink opacity-50 cursor-default"
-        : "text-ink hover:bg-brand-soft"
-    }`;
+  function glyph(it: Item, size: number, active: boolean) {
+    const Icon = it.icon;
+    return (
+      <span className="relative grid shrink-0 place-items-center">
+        {it.avatar ? (
+          <span className={`rounded-full ${active ? "ring-2 ring-ink ring-offset-2" : ""}`}>
+            <Avatar url={me!.avatar_url} name={name} size={size + 2} />
+          </span>
+        ) : (
+          Icon && <Icon size={size} strokeWidth={active ? 2.6 : 2} className="shrink-0" />
+        )}
+        {!!it.badge && (
+          <span className="absolute -right-2 -top-2 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+            {it.badge > 9 ? "9+" : it.badge}
+          </span>
+        )}
+      </span>
+    );
+  }
+
+  const row =
+    "flex items-center gap-4 rounded-full p-3 text-[17px] transition xl:px-4";
 
   return (
     <MeContext.Provider value={{ me, refresh, unread, refreshUnread }}>
       <div className="min-h-screen bg-canvas text-ink">
-        {/* Плавающая навигация (компьютер) */}
-        <aside className="fixed left-4 top-1/2 z-20 hidden w-52 -translate-y-1/2 flex-col gap-1 rounded-[2rem] border border-line bg-white/90 p-2 shadow-lg backdrop-blur md:flex">
-          <Link href="/feed" className="flex items-center justify-center py-3">
-            <Logo size={34} />
+        {/* Всплывающее уведомление */}
+        {toast && (
+          <Link
+            href={toast.href}
+            onClick={() => setToast(null)}
+            className="fixed left-1/2 top-3 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center gap-3 rounded-xl border border-line bg-white p-3 shadow-lg"
+          >
+            <Avatar url={toast.avatar} name={toast.name} size={36} />
+            <p className="min-w-0 text-[15px]">
+              <b className="break-words">{toast.name}</b> {toast.text}
+            </p>
+          </Link>
+        )}
+
+        {/* Левая колонка (компьютер) */}
+        <aside className="fixed inset-y-0 left-0 z-20 hidden w-16 flex-col items-center border-r border-line bg-white py-4 md:flex xl:w-60 xl:items-stretch xl:px-3">
+          <Link href="/feed" className="mb-4 flex items-center p-3 xl:px-4">
+            <Logo size={30} />
           </Link>
 
           <nav className="flex flex-col gap-1">
             {items.map((it) => {
               const active = !it.soon && pathname === it.href;
-              const Icon = it.icon;
-              const inner = (
-                <>
-                  {it.avatar ? (
-                    <span className={`rounded-full ${active ? "ring-2 ring-white" : ""}`}>
-                      <Avatar url={me.avatar_url} name={name} size={24} />
-                    </span>
-                  ) : (
-                    <Icon size={22} />
-                  )}
-                  <span>{it.label}</span>
-                  {it.soon && (
-                    <span className="ml-auto rounded-full bg-canvas px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
+              const label = <span className="hidden xl:inline">{it.label}</span>;
+              if (it.soon) {
+                return (
+                  <div
+                    key={it.key}
+                    title={`${it.label} (скоро)`}
+                    className={`${row} cursor-default text-muted opacity-60`}
+                  >
+                    {glyph(it, 24, false)}
+                    {label}
+                    <span className="ml-auto hidden rounded-full bg-canvas px-2 py-0.5 text-[10px] uppercase tracking-wide xl:inline">
                       скоро
                     </span>
-                  )}
-                  {!!it.badge && (
-                    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-red-500 px-1 text-[11px] font-semibold text-white">
-                      {it.badge > 9 ? "9+" : it.badge}
-                    </span>
-                  )}
-                </>
-              );
-              return it.soon ? (
-                <div key={it.key} className={pill(false, true)}>
-                  {inner}
-                </div>
-              ) : (
-                <Link key={it.key} href={it.href} className={pill(active)}>
-                  {inner}
+                  </div>
+                );
+              }
+              return (
+                <Link
+                  key={it.key}
+                  href={it.href}
+                  title={it.label}
+                  className={`${row} ${
+                    active ? "bg-brand-soft font-bold" : "hover:bg-brand-soft"
+                  }`}
+                >
+                  {glyph(it, 24, active)}
+                  {label}
                 </Link>
               );
             })}
           </nav>
 
-          <div className="mt-1 border-t border-line pt-1">
-            <button
-              onClick={logout}
-              className="flex w-full items-center gap-3 rounded-full px-4 py-2.5 text-[15px] font-medium text-muted transition hover:bg-red-50 hover:text-red-500"
-            >
-              <LogOut size={22} />
-              Выйти
-            </button>
-          </div>
+          <button
+            onClick={logout}
+            title="Выйти"
+            className={`${row} mt-auto text-muted hover:bg-brand-soft hover:text-ink`}
+          >
+            <LogOut size={24} className="shrink-0" />
+            <span className="hidden xl:inline">Выйти</span>
+          </button>
         </aside>
 
-        <div className="md:pl-64">
+        <div className="md:pl-16 xl:pl-60">
           {/* Верхняя полоса (телефон) */}
-          <header className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-white/90 px-4 py-3 backdrop-blur md:hidden">
-            <Logo size={32} />
+          <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-white/90 px-4 backdrop-blur md:hidden">
+            <Logo size={28} />
             <button onClick={logout} aria-label="Выйти" className="text-muted">
               <LogOut size={22} />
             </button>
           </header>
 
-          <main className="mx-auto max-w-3xl px-4 py-6 pb-28 md:px-8 md:pb-10">
-            {children}
-          </main>
+          <main className="mx-auto max-w-2xl px-4 py-6 pb-24 md:pb-10">{children}</main>
         </div>
 
-        {/* Нижняя навигация (телефон) */}
-        <nav className="fixed inset-x-4 bottom-3 z-20 flex justify-around rounded-full border border-line bg-white/95 p-1.5 shadow-lg backdrop-blur md:hidden">
+        {/* Нижняя панель (телефон) */}
+        <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
           {items
             .filter((it) => !it.soon)
             .map((it) => {
               const active = pathname === it.href;
-              const Icon = it.icon;
               return (
                 <Link
                   key={it.key}
                   href={it.href}
                   aria-label={it.label}
-                  className={`relative grid h-11 w-11 place-items-center rounded-full transition ${
-                    active
-                      ? "bg-linear-to-r from-brand to-brand-strong text-white"
-                      : "text-muted"
+                  className={`grid h-14 w-16 place-items-center ${
+                    active ? "text-ink" : "text-muted"
                   }`}
                 >
-                  {it.avatar ? (
-                    <span className={`rounded-full ${active ? "ring-2 ring-white" : ""}`}>
-                      <Avatar url={me.avatar_url} name={name} size={26} />
-                    </span>
-                  ) : (
-                    <Icon size={22} />
-                  )}
-                  {!!it.badge && (
-                    <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
-                      {it.badge > 9 ? "9+" : it.badge}
-                    </span>
-                  )}
+                  {glyph(it, 24, active)}
                 </Link>
               );
             })}

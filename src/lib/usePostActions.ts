@@ -10,21 +10,41 @@ export function usePostActions(
   reload: () => unknown,
   onError: (message: string) => void
 ) {
+  function patch(id: string, change: (p: Post) => Post) {
+    setPosts((prev) => prev.map((p) => (p.id === id ? change(p) : p)));
+  }
+
   async function toggleLike(post: Post) {
-    const liked = post.liked;
+    const on = post.liked;
+    patch(post.id, (p) => ({ ...p, liked: !on, likes_count: p.likes_count + (on ? -1 : 1) }));
 
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id !== post.id
-          ? p
-          : { ...p, liked: !liked, likes_count: p.likes_count + (liked ? -1 : 1) }
-      )
-    );
-
-    const { error } = liked
+    const { error } = on
       ? await supabase.from("likes").delete().eq("post_id", post.id).eq("user_id", myId)
       : await supabase.from("likes").insert({ post_id: post.id, user_id: myId });
+    if (error) reload();
+  }
 
+  async function toggleRepost(post: Post) {
+    const on = post.reposted;
+    patch(post.id, (p) => ({
+      ...p,
+      reposted: !on,
+      reposts_count: p.reposts_count + (on ? -1 : 1),
+    }));
+
+    const { error } = on
+      ? await supabase.from("reposts").delete().eq("post_id", post.id).eq("user_id", myId)
+      : await supabase.from("reposts").insert({ post_id: post.id, user_id: myId });
+    if (error) reload();
+  }
+
+  async function toggleBookmark(post: Post) {
+    const on = post.bookmarked;
+    patch(post.id, (p) => ({ ...p, bookmarked: !on }));
+
+    const { error } = on
+      ? await supabase.from("bookmarks").delete().eq("post_id", post.id).eq("user_id", myId)
+      : await supabase.from("bookmarks").insert({ post_id: post.id, user_id: myId });
     if (error) reload();
   }
 
@@ -47,5 +67,5 @@ export function usePostActions(
     return true;
   }
 
-  return { toggleLike, removePost };
+  return { toggleLike, toggleRepost, toggleBookmark, removePost };
 }

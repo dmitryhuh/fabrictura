@@ -13,35 +13,54 @@ export type Post = {
   } | null;
   likes_count: number;
   comments_count: number;
+  reposts_count: number;
   liked: boolean;
+  reposted: boolean;
+  bookmarked: boolean;
+  // когда пост репостнули (только в профиле, для постов-репостов)
+  repost_at?: string | null;
 };
 
 // как пост приходит из базы, до обработки
-export type RawPost = Omit<Post, "likes_count" | "comments_count" | "liked"> & {
+export type RawPost = Omit<
+  Post,
+  | "likes_count"
+  | "comments_count"
+  | "reposts_count"
+  | "liked"
+  | "reposted"
+  | "bookmarked"
+  | "repost_at"
+> & {
   likes: { count: number }[];
   comments: { count: number }[];
+  reposts: { count: number }[];
 };
 
 export const POST_SELECT =
-  "id, content, created_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url), likes(count), comments(count)";
+  "id, content, created_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url), likes(count), comments(count), reposts(count)";
 
-// превращает посты из базы в готовые для показа и отмечает, какие лайкнул я
+// превращает посты из базы в готовые для показа и отмечает мои лайки, репосты и избранное
 export async function withLiked(rows: RawPost[], myId: string): Promise<Post[]> {
   if (rows.length === 0) return [];
-  const { data } = await supabase
-    .from("likes")
-    .select("post_id")
-    .eq("user_id", myId)
-    .in(
-      "post_id",
-      rows.map((r) => r.id)
-    );
-  const mine = new Set((data ?? []).map((l) => l.post_id));
-  return rows.map(({ likes, comments, ...rest }) => ({
+  const ids = rows.map((r) => r.id);
+  const mine = (table: "likes" | "reposts" | "bookmarks") =>
+    supabase.from(table).select("post_id").eq("user_id", myId).in("post_id", ids);
+
+  const [l, r, b] = await Promise.all([mine("likes"), mine("reposts"), mine("bookmarks")]);
+  const setOf = (d: { post_id: string }[] | null) => new Set((d ?? []).map((x) => x.post_id));
+  const liked = setOf(l.data);
+  const reposted = setOf(r.data);
+  const saved = setOf(b.data);
+
+  return rows.map(({ likes, comments, reposts, ...rest }) => ({
     ...rest,
     likes_count: likes?.[0]?.count ?? 0,
     comments_count: comments?.[0]?.count ?? 0,
-    liked: mine.has(rest.id),
+    reposts_count: reposts?.[0]?.count ?? 0,
+    liked: liked.has(rest.id),
+    reposted: reposted.has(rest.id),
+    bookmarked: saved.has(rest.id),
   }));
 }
 

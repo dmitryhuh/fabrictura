@@ -62,7 +62,12 @@ export default function PostPage() {
     load();
   }, [load]);
 
-  const { toggleLike, removePost } = usePostActions(me.id, setPosts, load, setError);
+    const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+    me.id,
+    setPosts,
+    load,
+    setError
+  );
 
   async function handleDeletePost(post: Post) {
     const ok = await removePost(post);
@@ -113,7 +118,14 @@ export default function PostPage() {
         <ArrowLeft size={16} /> К ленте
       </Link>
 
-      <PostCard post={post} myId={me.id} onLike={toggleLike} onDelete={handleDeletePost} />
+      <PostCard
+        post={post}
+        myId={me.id}
+        onLike={toggleLike}
+        onRepost={toggleRepost}
+        onBookmark={toggleBookmark}
+        onDelete={handleDeletePost}
+      />
 
       <form
         onSubmit={sendComment}

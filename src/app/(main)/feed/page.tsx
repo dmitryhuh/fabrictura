@@ -82,7 +82,12 @@ export default function FeedPage() {
     setLoadingMore(false);
   }
 
-  const { toggleLike, removePost } = usePostActions(me.id, setPosts, loadPosts, setError);
+    const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+    me.id,
+    setPosts,
+    loadPosts,
+    setError
+  );
 
   async function pickFile(f: File) {
     const problem = checkImage(f, 20);
@@ -262,6 +267,8 @@ export default function FeedPage() {
           post={post}
           myId={me.id}
           onLike={toggleLike}
+          onRepost={toggleRepost}
+          onBookmark={toggleBookmark}
           onDelete={removePost}
         />
       ))}

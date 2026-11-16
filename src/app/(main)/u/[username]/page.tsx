@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Cake } from "lucide-react";
+import { Camera, Cake, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
@@ -23,6 +23,15 @@ type Profile = {
   birth_date: string | null;
 };
 
+type Tab = "posts" | "reposts" | "saved";
+
+async function fromJoin(data: unknown, myId: string): Promise<Post[]> {
+  const rows = ((data ?? []) as { post: RawPost | null }[])
+    .map((r) => r.post)
+    .filter((p): p is RawPost => !!p);
+  return withLiked(rows, myId);
+}
+
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const router = useRouter();
@@ -31,6 +40,9 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [reposts, setReposts] = useState<Post[]>([]);
+  const [saved, setSaved] = useState<Post[]>([]);
+  const [tab, setTab] = useState<Tab>("posts");
   const [followers, setFollowers] = useState(0);
   const [following, setFollowing] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -58,7 +70,8 @@ export default function ProfilePage() {
     setNotFound(false);
     setProfile(p);
 
-    const [a, b, c, d] = await Promise.all([
+    const mine = p.id === me.id;
+    const [a, b, c, d, e, f] = await Promise.all([
       supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", p.id),
       supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", p.id),
       supabase
@@ -72,19 +85,58 @@ export default function ProfilePage() {
         .eq("author_id", p.id)
         .order("created_at", { ascending: false })
         .limit(50),
+      supabase
+        .from("reposts")
+        .select(`created_at, post:posts(${POST_SELECT})`)
+        .eq("user_id", p.id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      mine
+        ? supabase
+            .from("bookmarks")
+            .select(`created_at, post:posts(${POST_SELECT})`)
+            .eq("user_id", me.id)
+            .order("created_at", { ascending: false })
+            .limit(50)
+        : Promise.resolve({ data: [] }),
     ]);
 
     setFollowers(a.count ?? 0);
     setFollowing(b.count ?? 0);
     setIsFollowing((c.count ?? 0) > 0);
     setPosts(await withLiked((d.data ?? []) as unknown as RawPost[], me.id));
+    setReposts(await fromJoin(e.data, me.id));
+    setSaved(await fromJoin(f.data, me.id));
   }, [username, me.id]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const { toggleLike, removePost } = usePostActions(me.id, setPosts, load, setError);
+  // лайки и удаление меняют пост сразу во всех вкладках
+  const setAll: Dispatch<SetStateAction<Post[]>> = useCallback((action) => {
+    const apply = (prev: Post[]) => (typeof action === "function" ? action(prev) : action);
+    setPosts(apply);
+    setReposts(apply);
+    setSaved(apply);
+  }, []);
+
+  const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+    me.id,
+    setAll,
+    load,
+    setError
+  );
+
+  async function repost(p: Post) {
+    await toggleRepost(p);
+    load();
+  }
+
+  async function bookmark(p: Post) {
+    await toggleBookmark(p);
+    load();
+  }
 
   async function toggleFollow() {
     if (!profile) return;
@@ -201,7 +253,6 @@ export default function ProfilePage() {
       return;
     }
 
-    // старую аватарку удаляем, чтобы не копились файлы
     if (oldUrl) {
       const marker = "/avatars/";
       const i = oldUrl.indexOf(marker);
@@ -276,10 +327,24 @@ export default function ProfilePage() {
   const isMe = profile.id === me.id;
   const name = profile.display_name || profile.username;
 
+  const tabs: { key: Tab; label: string }[] = [
+    { key: "posts", label: "Публикации" },
+    { key: "reposts", label: "Репосты" },
+    ...(isMe ? [{ key: "saved" as Tab, label: "Избранное" }] : []),
+  ];
+  const current = tab === "saved" && !isMe ? "posts" : tab;
+  const list = current === "posts" ? posts : current === "reposts" ? reposts : saved;
+  const emptyText =
+    current === "posts"
+      ? "Публикаций пока нет."
+      : current === "reposts"
+      ? "Репостов пока нет."
+      : "Здесь будут посты, которые вы сохраните.";
+
   return (
-    <div className="space-y-5">
-      <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm">
-                <div className="relative h-36 bg-linear-to-r from-brand to-brand-deep sm:h-48">
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-xl border border-line bg-white">
+        <div className="relative h-36 bg-linear-to-r from-brand to-brand-deep sm:h-48">
           {profile.cover_url && (
             <img src={profile.cover_url} alt="" className="h-full w-full object-cover" />
           )}
@@ -306,6 +371,7 @@ export default function ProfilePage() {
             </>
           )}
         </div>
+
         <div className="px-6 pb-6">
           <div className="-mt-14 flex items-end justify-between">
             <div className="relative">
@@ -317,7 +383,7 @@ export default function ProfilePage() {
                   <button
                     onClick={() => fileRef.current?.click()}
                     aria-label="Сменить аватарку"
-                    className="absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full bg-brand-strong text-white ring-2 ring-white hover:bg-brand-hover"
+                    className="absolute bottom-1 right-1 grid h-9 w-9 place-items-center rounded-full bg-ink text-white ring-2 ring-white hover:bg-brand-hover"
                   >
                     <Camera size={17} />
                   </button>
@@ -413,14 +479,39 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {posts.length === 0 && <p className="py-8 text-center text-muted">Постов пока нет.</p>}
+      <div className="flex justify-center gap-1 border-b border-line">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px inline-flex items-center gap-1.5 border-b-2 px-5 py-2.5 text-sm font-medium transition ${
+              current === t.key
+                ? "border-ink text-ink"
+                : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            {t.label}
+            {t.key === "saved" && <EyeOff size={15} />}
+          </button>
+        ))}
+      </div>
 
-      {posts.map((post) => (
+      {current === "saved" && (
+        <p className="flex items-center justify-center gap-1.5 text-sm text-muted">
+          <EyeOff size={15} /> Видно только вам
+        </p>
+      )}
+
+      {list.length === 0 && <p className="py-8 text-center text-muted">{emptyText}</p>}
+
+      {list.map((post) => (
         <PostCard
-          key={post.id}
+          key={`${current}-${post.id}`}
           post={post}
           myId={me.id}
           onLike={toggleLike}
+          onRepost={repost}
+          onBookmark={bookmark}
           onDelete={removePost}
         />
       ))}
