@@ -18,6 +18,7 @@ type Profile = {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  cover_url: string | null;
   bio: string | null;
   birth_date: string | null;
 };
@@ -41,11 +42,12 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const coverRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     const { data: p } = await supabase
       .from("profiles")
-      .select("id, username, display_name, avatar_url, bio, birth_date")
+      .select("id, username, display_name, avatar_url, cover_url, bio, birth_date")
       .eq("username", username)
       .maybeSingle();
 
@@ -211,6 +213,59 @@ export default function ProfilePage() {
     await Promise.all([load(), refresh()]);
   }
 
+  async function uploadCover(file: File) {
+    setError("");
+    const problem = checkImage(file, 20);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+
+    let small: File;
+    try {
+      small = await compressImage(file, 1500);
+    } catch {
+      setError("Не удалось обработать картинку");
+      return;
+    }
+    const tooBig = checkImage(small, 3);
+    if (tooBig) {
+      setError(tooBig);
+      return;
+    }
+
+    const oldUrl = profile?.cover_url;
+    const path = `${me.id}/${Date.now()}.${imageExt(small.type)}`;
+    const { error: upErr } = await supabase.storage
+      .from("covers")
+      .upload(path, small, { contentType: small.type });
+    if (upErr) {
+      setError(upErr.message);
+      return;
+    }
+
+    const { data } = supabase.storage.from("covers").getPublicUrl(path);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ cover_url: data.publicUrl })
+      .eq("id", me.id);
+    if (error) {
+      await supabase.storage.from("covers").remove([path]);
+      setError(error.message);
+      return;
+    }
+
+    if (oldUrl) {
+      const marker = "/covers/";
+      const i = oldUrl.indexOf(marker);
+      if (i !== -1) {
+        await supabase.storage.from("covers").remove([oldUrl.slice(i + marker.length)]);
+      }
+    }
+
+    await load();
+  }
+
   if (notFound) {
     return <p className="py-16 text-center text-muted">Такого пользователя нет.</p>;
   }
@@ -224,8 +279,33 @@ export default function ProfilePage() {
   return (
     <div className="space-y-5">
       <section className="overflow-hidden rounded-3xl border border-line bg-white shadow-sm">
-        <div className="h-36 bg-linear-to-r from-brand to-brand-deep" />
-
+                <div className="relative h-36 bg-linear-to-r from-brand to-brand-deep sm:h-48">
+          {profile.cover_url && (
+            <img src={profile.cover_url} alt="" className="h-full w-full object-cover" />
+          )}
+          {isMe && (
+            <>
+              <button
+                onClick={() => coverRef.current?.click()}
+                aria-label="Сменить обложку"
+                className="absolute bottom-3 right-3 grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white hover:bg-black/75"
+              >
+                <Camera size={17} />
+              </button>
+              <input
+                ref={coverRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                hidden
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadCover(f);
+                  e.target.value = "";
+                }}
+              />
+            </>
+          )}
+        </div>
         <div className="px-6 pb-6">
           <div className="-mt-14 flex items-end justify-between">
             <div className="relative">
@@ -271,6 +351,13 @@ export default function ProfilePage() {
 
           {editing ? (
             <form onSubmit={saveProfile} className="mt-5 space-y-3">
+              <input
+                className="input"
+                maxLength={30}
+                placeholder="Имя (до 30 символов)"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+              />
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">@</span>
                 <input
@@ -281,13 +368,6 @@ export default function ProfilePage() {
                   onChange={(e) => setUserInput(e.target.value.toLowerCase().replace(/\s/g, ""))}
                 />
               </div>
-              <input
-                className="input"
-                maxLength={30}
-                placeholder="Имя (до 30 символов)"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-              />
               <textarea
                 className="input resize-none"
                 rows={3}

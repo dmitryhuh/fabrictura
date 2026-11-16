@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 @theme {
-  --color-canvas: #F4F7FA;
-  --color-line: #E2E8F0;
-  --color-muted: #64748B;
-  --color-ink: #0F172A;
-  --color-brand: #5BB5F5;
-  --color-brand-strong: #1F86D6;
-  --color-brand-hover: #1A74BC;
-  --color-brand-deep: #0B4F8A;
-  --color-brand-soft: #E6F3FD;
+  --color-canvas: #F4F4F5;
+  --color-line: #E4E4E7;
+  --color-muted: #71717A;
+  --color-ink: #09090B;
+  --color-brand: #52525B;
+  --color-brand-strong: #09090B;
+  --color-brand-hover: #3F3F46;
+  --color-brand-deep: #27272A;
+  --color-brand-soft: #EFEFF1;
 }
 
 body {
@@ -23,7 +23,7 @@ body {
     @apply w-full rounded-xl border border-line bg-white px-4 py-3 outline-none transition focus:border-brand focus:ring-4 focus:ring-brand-soft;
   }
   .btn-primary {
-    @apply rounded-xl bg-linear-to-r from-brand to-brand-strong px-5 py-2.5 font-semibold text-white shadow-sm transition hover:brightness-95 active:scale-[0.98] disabled:opacity-50;
+    @apply rounded-xl bg-ink px-5 py-2.5 font-semibold text-white transition hover:bg-brand-hover active:scale-[0.98] disabled:opacity-50;
   }
   .btn-ghost {
     @apply rounded-xl border border-line bg-white px-4 py-2 text-sm font-medium transition hover:bg-brand-soft;

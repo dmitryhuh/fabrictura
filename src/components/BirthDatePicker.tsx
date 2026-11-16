@@ -134,7 +134,7 @@ export default function BirthDatePicker({ value, onChange }: Props) {
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 z-30 mt-2 max-w-sm rounded-2xl border border-line bg-white p-3 shadow-xl">
+        <div className="mt-2 max-w-sm rounded-2xl border border-line bg-white p-3">
           <div className="mb-2 flex items-center justify-between">
             <button
               type="button"

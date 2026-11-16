@@ -156,6 +156,30 @@ export default function FeedPage() {
 
   return (
     <div className="space-y-5">
+              <div className="sticky top-14 z-10 flex justify-center gap-1 border-b border-line bg-canvas/90 backdrop-blur md:top-0">
+        {(
+          [
+            ["all", "Все"],
+            ["following", "Подписки"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => {
+              setLoading(true);
+              setTab(key);
+            }}
+            className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition ${
+              tab === key
+                ? "border-brand-strong text-brand-strong"
+                : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      
       <form
         onSubmit={publish}
         className="rounded-3xl border border-line bg-white p-5 shadow-sm"
@@ -219,30 +243,6 @@ export default function FeedPage() {
           }}
         />
       </form>
-
-      <div className="flex gap-1 border-b border-line">
-        {(
-          [
-            ["all", "Все"],
-            ["following", "Подписки"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => {
-              setLoading(true);
-              setTab(key);
-            }}
-            className={`-mb-px border-b-2 px-5 py-2.5 text-sm font-medium transition ${
-              tab === key
-                ? "border-brand-strong text-brand-strong"
-                : "border-transparent text-muted hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 

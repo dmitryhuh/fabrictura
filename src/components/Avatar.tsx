@@ -18,7 +18,7 @@ export default function Avatar({ url, name, size = 40 }: Props) {
   return (
     <div
       style={style}
-      className="rounded-full shrink-0 grid place-items-center font-semibold text-white bg-linear-to-br from-brand to-brand-strong"
+      className="rounded-full shrink-0 grid place-items-center font-semibold text-white bg-ink"
     >
       {name.charAt(0).toUpperCase()}
     </div>

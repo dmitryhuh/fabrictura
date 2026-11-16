@@ -12,7 +12,7 @@ export default function AuthLayout({
       className="min-h-screen grid place-items-center p-4 text-ink"
       style={{
         background:
-          "radial-gradient(circle at 15% 10%, #DCEEFC 0, transparent 45%), radial-gradient(circle at 85% 90%, #E6F3FD 0, transparent 45%), #F4F7FA",
+          "radial-gradient(circle at 15% 10%, #E4E4E7 0, transparent 45%), radial-gradient(circle at 85% 90%, #EFEFF1 0, transparent 45%), #F4F4F5",
       }}
     >
       <div className="w-full max-w-md rounded-3xl border border-line bg-white p-8 shadow-xl shadow-brand/10">
