@@ -189,8 +189,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Левая колонка (компьютер) */}
-        <aside className="fixed inset-y-0 left-0 z-20 hidden w-16 flex-col items-center border-r border-line bg-white py-4 md:flex xl:w-60 xl:items-stretch xl:px-3">
-          <Link href="/feed" className="mb-4 flex items-center p-3 xl:px-4">
+        <aside className="fixed left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col items-stretch rounded-2xl border border-line bg-white p-2 md:flex xl:w-56">
+          <Link
+            href="/feed"
+            className="mb-2 flex w-full items-center justify-center py-3"
+          >
             <Logo size={30} />
           </Link>
 
@@ -229,17 +232,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
+          <div className="mt-2 border-t border-line" />
+
           <button
             onClick={logout}
             title="Выйти"
-            className={`${row} mt-auto text-muted hover:bg-brand-soft hover:text-ink`}
+            className={`${row} mt-3 w-full text-muted hover:bg-brand-soft hover:text-ink`}
           >
             <LogOut size={24} className="shrink-0" />
             <span className="hidden xl:inline">Выйти</span>
           </button>
         </aside>
 
-        <div className="md:pl-16 xl:pl-60">
+        <div className="md:px-20 xl:px-64">
           {/* Верхняя полоса (телефон) */}
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-white/90 px-4 backdrop-blur md:hidden">
             <Logo size={28} />

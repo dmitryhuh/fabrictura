@@ -192,12 +192,16 @@ export default function FeedPage() {
         <div className="flex gap-4">
           <Avatar url={me.avatar_url} name={name} size={52} />
           <textarea
-            className="flex-1 resize-none bg-transparent pt-2 text-[17px] outline-none placeholder:text-muted"
-            rows={3}
+            className="min-h-[44px] flex-1 resize-none bg-transparent pt-2 text-[16px] outline-none placeholder:text-muted"
+            rows={1}
             maxLength={500}
             placeholder="Что нового?"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => {
+              setText(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
           />
         </div>
 
