@@ -35,15 +35,19 @@ export default function SearchPage() {
     return () => clearTimeout(t);
   }, [term]);
 
+  const ready = term.length >= 2 && searched === term;
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <h1 className="px-1 text-xl font-bold">Поиск</h1>
+
       <div className="relative">
         <SearchIcon
           size={20}
           className="absolute left-4 top-1/2 -translate-y-1/2 text-muted"
         />
         <input
-          className="input !rounded-full pl-12"
+          className="input pl-12"
           placeholder="Найти людей по имени или логину"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -55,33 +59,35 @@ export default function SearchPage() {
         <p className="py-10 text-center text-muted">Введите минимум 2 символа.</p>
       )}
 
-      {term.length >= 2 && searched !== term && (
+      {term.length >= 2 && !ready && (
         <p className="py-10 text-center text-muted">Ищем...</p>
       )}
 
-      {term.length >= 2 && searched === term && results.length === 0 && (
+      {ready && results.length === 0 && (
         <p className="py-10 text-center text-muted">Никого не нашли.</p>
       )}
 
-      {term.length >= 2 &&
-        searched === term &&
-        results.map((r) => {
-          const name = r.display_name || r.username;
-          return (
-            <Link
-              key={r.id}
-              href={`/u/${r.username}`}
-              className="flex items-center gap-4 rounded-3xl border border-line bg-white p-4 shadow-sm transition hover:shadow-md"
-            >
-              <Avatar url={r.avatar_url} name={name} size={52} />
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{name}</p>
-                <p className="truncate text-sm text-muted">@{r.username}</p>
-                {r.bio && <p className="mt-1 truncate text-sm">{r.bio}</p>}
-              </div>
-            </Link>
-          );
-        })}
+      {ready && results.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-line bg-white">
+          {results.map((r) => {
+            const name = r.display_name || r.username;
+            return (
+              <Link
+                key={r.id}
+                href={`/u/${r.username}`}
+                className="flex items-center gap-3 border-b border-line px-4 py-3 transition last:border-b-0 hover:bg-brand-soft"
+              >
+                <Avatar url={r.avatar_url} name={name} size={40} />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{name}</p>
+                  <p className="truncate text-sm text-muted">@{r.username}</p>
+                  {r.bio && <p className="mt-0.5 truncate text-sm">{r.bio}</p>}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

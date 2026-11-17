@@ -264,6 +264,16 @@ export default function ProfilePage() {
     await Promise.all([load(), refresh()]);
   }
 
+  async function openChat() {
+    if (!profile) return;
+    const { data, error } = await supabase.rpc("open_conversation", { other: profile.id });
+    if (error || !data) {
+      setError(error?.message ?? "Не удалось открыть чат");
+      return;
+    }
+    router.push(`/messages/${data}`);
+  }
+
   async function uploadCover(file: File) {
     setError("");
     const problem = checkImage(file, 20);
@@ -409,12 +419,15 @@ export default function ProfilePage() {
                 </button>
               )
             ) : (
-              <button onClick={toggleFollow} className={isFollowing ? "btn-ghost" : "btn-primary"}>
-                {isFollowing ? "Вы подписаны" : "Подписаться"}
-              </button>
+              <div className="flex gap-2">
+                <button onClick={openChat} className="btn-ghost">Написать</button>
+                <button onClick={toggleFollow} className={isFollowing ? "btn-ghost" : "btn-primary"}>
+                  {isFollowing ? "Вы подписаны" : "Подписаться"}
+                </button>
+              </div>
             )}
-          </div>
-
+        </div>
+        
           {editing ? (
             <form onSubmit={saveProfile} className="mt-5 space-y-3">
               <input

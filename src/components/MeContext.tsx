@@ -14,6 +14,8 @@ export const MeContext = createContext<{
   refresh: () => Promise<void>;
   unread: number;
   refreshUnread: () => Promise<void>;
+  unreadMessages: number;
+  refreshUnreadMessages: () => Promise<void>;
 } | null>(null);
 
 export function useMe() {

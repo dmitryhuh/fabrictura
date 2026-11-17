@@ -40,6 +40,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
   const [unread, setUnread] = useState(0);
+  const [unreadMsgs, setUnreadMsgs] = useState(0);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myId = me?.id;
@@ -74,13 +75,27 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setUnread(count ?? 0);
   }, [myId]);
 
+  const refreshUnreadMessages = useCallback(async () => {
+    if (!myId) return;
+    const { count } = await supabase
+      .from("messages")
+      .select("*", { count: "exact", head: true })
+      .eq("recipient_id", myId)
+      .is("read_at", null);
+    setUnreadMsgs(count ?? 0);
+  }, [myId]);
+
   useEffect(() => {
     refreshUnread();
-    const t = setInterval(refreshUnread, 60000);
+    refreshUnreadMessages();
+    const t = setInterval(() => {
+      refreshUnread();
+      refreshUnreadMessages();
+    }, 60000);
     return () => clearInterval(t);
-  }, [refreshUnread, pathname]);
+  }, [refreshUnread, refreshUnreadMessages, pathname]);
 
-  // новые уведомления приходят сразу
+  // новые уведомления и сообщения приходят сразу (один канал на всё)
   useEffect(() => {
     if (!myId) return;
     const channel = supabase
@@ -116,13 +131,29 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           toastTimer.current = setTimeout(() => setToast(null), 5000);
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages", filter: `recipient_id=eq.${myId}` },
+        () => {
+          refreshUnreadMessages();
+          window.dispatchEvent(new Event("msg-new"));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `recipient_id=eq.${myId}` },
+        () => {
+          refreshUnreadMessages();
+          window.dispatchEvent(new Event("msg-new"));
+        }
+      )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
       if (toastTimer.current) clearTimeout(toastTimer.current);
     };
-  }, [myId, refreshUnread]);
+  }, [myId, refreshUnread, refreshUnreadMessages]);
 
   async function logout() {
     await supabase.auth.signOut();
@@ -138,15 +169,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const name = me.display_name || me.username;
+  // сообщения занимают больше места, чем остальные страницы
+  const wide = pathname.startsWith("/messages");
 
   const items: Item[] = [
     { key: "feed", href: "/feed", label: "Лента", icon: Home },
     { key: "search", href: "/search", label: "Поиск", icon: Search },
-    { key: "chats", href: "#", label: "Чаты", icon: MessageCircle, soon: true },
+    { key: "chats", href: "/messages", label: "Чаты", icon: MessageCircle, badge: unreadMsgs },
     { key: "gifts", href: "#", label: "Подарки", icon: Gift, soon: true },
     { key: "notifications", href: "/notifications", label: "Уведомления", icon: Bell, badge: unread },
     { key: "profile", href: `/u/${me.username}`, label: "Профиль", avatar: true },
   ];
+
+  function isActive(it: Item) {
+    if (it.soon) return false;
+    return it.key === "chats" ? pathname.startsWith("/messages") : pathname === it.href;
+  }
 
   function glyph(it: Item, size: number, active: boolean) {
     const Icon = it.icon;
@@ -172,7 +210,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     "flex items-center gap-4 rounded-full p-3 text-[17px] transition xl:px-4";
 
   return (
-    <MeContext.Provider value={{ me, refresh, unread, refreshUnread }}>
+    <MeContext.Provider
+      value={{
+        me,
+        refresh,
+        unread,
+        refreshUnread,
+        unreadMessages: unreadMsgs,
+        refreshUnreadMessages,
+      }}
+    >
       <div className="min-h-screen bg-canvas text-ink">
         {/* Всплывающее уведомление */}
         {toast && (
@@ -189,7 +236,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         {/* Левая колонка (компьютер) */}
-        <aside className="fixed left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col items-stretch rounded-2xl border border-line bg-white p-2 md:flex xl:w-56">
+        <aside className="fixed left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col items-stretch rounded-xl border border-line bg-white p-2 md:flex xl:w-56">
           <Link
             href="/feed"
             className="mb-2 flex w-full items-center justify-center py-3"
@@ -199,7 +246,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav className="flex flex-col gap-1">
             {items.map((it) => {
-              const active = !it.soon && pathname === it.href;
+              const active = isActive(it);
               const label = <span className="hidden xl:inline">{it.label}</span>;
               if (it.soon) {
                 return (
@@ -244,7 +291,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         </aside>
 
-        <div className="md:px-20 xl:px-64">
+        <div className={wide ? "md:pl-20 md:pr-4 xl:pl-64" : "md:px-20 xl:px-64"}>
           {/* Верхняя полоса (телефон) */}
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-white/90 px-4 backdrop-blur md:hidden">
             <Logo size={28} />
@@ -253,7 +300,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </header>
 
-          <main className="mx-auto max-w-2xl px-4 py-6 pb-24 md:pb-10">{children}</main>
+          <main
+            className={
+              wide
+                ? "mx-auto max-w-5xl px-4 py-6 pb-24 md:px-0 md:py-4 md:pb-4"
+                : "mx-auto max-w-2xl px-4 py-6 pb-24 md:pb-10"
+            }
+          >
+            {children}
+          </main>
         </div>
 
         {/* Нижняя панель (телефон) */}
@@ -261,7 +316,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {items
             .filter((it) => !it.soon)
             .map((it) => {
-              const active = pathname === it.href;
+              const active = isActive(it);
               return (
                 <Link
                   key={it.key}

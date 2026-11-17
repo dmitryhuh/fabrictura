@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, MessageSquare, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
 import { Post, RawPost, POST_SELECT, timeAgo, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
+
+const MAX = 300;
 
 type Comment = {
   id: string;
@@ -62,7 +64,7 @@ export default function PostPage() {
     load();
   }, [load]);
 
-    const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+  const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
     me.id,
     setPosts,
     load,
@@ -110,13 +112,17 @@ export default function PostPage() {
   const name = me.display_name || me.username;
 
   return (
-    <div className="space-y-5">
-      <Link
-        href="/feed"
-        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink"
-      >
-        <ArrowLeft size={16} /> К ленте
-      </Link>
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Link
+          href="/feed"
+          aria-label="К ленте"
+          className="grid h-9 w-9 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
+        >
+          <ArrowLeft size={20} />
+        </Link>
+        <h1 className="text-xl font-bold">Пост</h1>
+      </div>
 
       <PostCard
         post={post}
@@ -129,63 +135,85 @@ export default function PostPage() {
 
       <form
         onSubmit={sendComment}
-        className="flex items-start gap-3 rounded-3xl border border-line bg-white p-4 shadow-sm"
+        className="flex gap-3 rounded-xl border border-line bg-white p-4"
       >
-        <Avatar url={me.avatar_url} name={name} size={44} />
-        <textarea
-          className="flex-1 resize-none bg-transparent pt-2 outline-none placeholder:text-muted"
-          rows={2}
-          maxLength={300}
-          placeholder="Написать комментарий..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        <button disabled={sending || !text.trim()} className="btn-primary">
-          Отправить
-        </button>
+        <Avatar url={me.avatar_url} name={name} size={40} />
+        <div className="min-w-0 flex-1">
+          <textarea
+            className="w-full resize-none bg-transparent pt-2 text-[16px] outline-none placeholder:text-muted"
+            rows={1}
+            maxLength={MAX}
+            placeholder="Написать комментарий..."
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            }}
+          />
+          <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
+            <span className="text-xs text-muted">
+              {text.length}/{MAX}
+            </span>
+            <button disabled={sending || !text.trim()} className="btn-primary !py-1.5 text-sm">
+              {sending ? "Отправляем..." : "Отправить"}
+            </button>
+          </div>
+        </div>
       </form>
 
       {error && <p className="text-sm text-red-500">{error}</p>}
 
-      {comments.length === 0 && (
-        <p className="py-6 text-center text-muted">Комментариев пока нет.</p>
-      )}
+      <h2 className="px-1 pt-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        Комментарии · {comments.length}
+      </h2>
 
-      {comments.map((c) => {
-        const username = c.profiles?.username ?? "";
-        const cname = c.profiles?.display_name || username || "?";
-        const canDelete = c.author_id === me.id || post.author_id === me.id;
-        return (
-          <div
-            key={c.id}
-            className="flex gap-3 rounded-3xl border border-line bg-white p-4 shadow-sm"
-          >
-            <Link href={`/u/${username}`}>
-              <Avatar url={c.profiles?.avatar_url} name={cname} size={44} />
-            </Link>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <Link href={`/u/${username}`} className="min-w-0 truncate">
-                  <span className="font-semibold hover:underline">{cname}</span>
-                  <span className="text-sm text-muted">
-                    {" "}@{username} · {timeAgo(c.created_at)}
-                  </span>
+      {comments.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 rounded-xl border border-line bg-white py-10 text-muted">
+          <MessageSquare size={28} strokeWidth={1.6} />
+          <p className="text-sm">Комментариев пока нет. Начните разговор.</p>
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-line bg-white">
+          {comments.map((c) => {
+            const username = c.profiles?.username ?? "";
+            const cname = c.profiles?.display_name || username || "?";
+            const canDelete = c.author_id === me.id || post.author_id === me.id;
+            return (
+              <div
+                key={c.id}
+                className="flex gap-3 border-b border-line px-4 py-3.5 last:border-b-0"
+              >
+                <Link href={`/u/${username}`} className="shrink-0">
+                  <Avatar url={c.profiles?.avatar_url} name={cname} size={40} />
                 </Link>
-                {canDelete && (
-                  <button
-                    onClick={() => deleteComment(c.id)}
-                    aria-label="Удалить комментарий"
-                    className="text-muted transition hover:text-red-500"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/u/${username}`} className="min-w-0 truncate">
+                      <span className="font-semibold hover:underline">{cname}</span>
+                      <span className="text-sm text-muted">
+                        {" "}@{username} · {timeAgo(c.created_at)}
+                      </span>
+                    </Link>
+                    {canDelete && (
+                      <button
+                        onClick={() => deleteComment(c.id)}
+                        aria-label="Удалить комментарий"
+                        className="text-muted transition hover:text-red-500"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                    {c.content}
+                  </p>
+                </div>
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words">{c.content}</p>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

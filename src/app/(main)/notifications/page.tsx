@@ -98,7 +98,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="px-1 text-2xl font-bold">Уведомления</h1>
+      <h1 className="px-1 text-xl font-bold">Уведомления</h1>
 
       <div className="flex items-center justify-between px-1">
         <span className="rounded-full border border-line bg-white px-3 py-1 text-sm text-muted">

@@ -189,7 +189,7 @@ export default function FeedPage() {
         onSubmit={publish}
         className="rounded-3xl border border-line bg-white p-5 shadow-sm"
       >
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <Avatar url={me.avatar_url} name={name} size={52} />
           <textarea
             className="min-h-[44px] flex-1 resize-none bg-transparent pt-2 text-[16px] outline-none placeholder:text-muted"
@@ -210,7 +210,7 @@ export default function FeedPage() {
             <img
               src={preview}
               alt=""
-              className="max-h-80 w-full rounded-2xl border border-line object-cover"
+              className="max-h-80 w-full rounded-1g border border-line object-cover"
             />
             <button
               type="button"
