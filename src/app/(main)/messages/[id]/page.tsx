@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import EmojiButton, { insertEmoji } from "@/components/EmojiButton";
+import EmojiText, { bigEmojiCount } from "@/components/EmojiText";
 import { checkImage, compressImage, imageExt } from "@/lib/images";
 import {
   MAX_LEN,
@@ -348,6 +349,9 @@ export default function ChatPage() {
             next.sender_id !== m.sender_id ||
             dayLabel(next.created_at) !== dayLabel(m.created_at);
           const url = m.image_path ? signed[m.image_path] : null;
+          // 1–3 эмодзи без текста и картинки показываем крупно и без пузыря
+          const big = !m.image_path ? bigEmojiCount(m.content ?? "") : 0;
+          const BIG = ["", "h-16 w-16", "h-12 w-12", "h-10 w-10"][big];
           return (
             <div key={m.id}>
               {newDay && (
@@ -359,8 +363,10 @@ export default function ChatPage() {
               )}
               <div className={`flex ${mine ? "justify-end" : "justify-start"} ${first ? "mt-2" : "mt-0.5"}`}>
                 <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-1.5 ${
-                    mine
+                  className={`max-w-[80%] rounded-2xl ${big ? "px-1" : "px-3 py-1.5"} ${
+                    big
+                      ? ""
+                      : mine
                       ? `bg-ink text-white ${last ? "rounded-br-sm" : ""}`
                       : `border border-line bg-white ${last ? "rounded-bl-sm" : ""}`
                   }`}
@@ -378,14 +384,22 @@ export default function ChatPage() {
                     ) : (
                       <div className="mb-1 h-40 w-64 max-w-full animate-pulse rounded-xl bg-brand-soft sm:w-72" />
                     ))}
-                  {m.content && (
-                    <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                      {m.content}
-                    </p>
-                  )}
+                  {m.content &&
+                    (big ? (
+                      <p className="leading-none">
+                        <EmojiText
+                          text={m.content}
+                          emojiClassName={`inline-block ${BIG} align-middle`}
+                        />
+                      </p>
+                    ) : (
+                      <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                        <EmojiText text={m.content} />
+                      </p>
+                    ))}
                   <p
                     className={`flex items-center justify-end gap-1 text-[11px] leading-tight ${
-                      mine ? "text-white/60" : "text-muted"
+                      mine && !big ? "text-white/60" : "text-muted"
                     }`}
                   >
                     {clock(m.created_at)}

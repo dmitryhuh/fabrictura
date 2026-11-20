@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Smile } from "lucide-react";
+import { Emoji } from "@/components/EmojiText";
 
 const CATEGORIES = [
   { icon: "😀", name: "Смайлы", list: "😀 😃 😄 😁 😆 😅 😂 🤣 ☺️ 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😛 😝 😜 🤪 🤨 🧐 🤓 😎 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🤭 🤫 🤥 😶 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤑 🤠 😈 👿 👹 👺 🤡 💩 👻 💀 ☠️ 👽 👾 🤖 🎃" },
@@ -82,7 +83,7 @@ export default function EmojiButton({
                   i === cat ? "bg-brand-soft" : "hover:bg-brand-soft"
                 }`}
               >
-                {c.icon}
+                <Emoji char={c.icon} />
               </button>
             ))}
           </div>
@@ -95,7 +96,7 @@ export default function EmojiButton({
                 onClick={() => onPick(e)}
                 className="grid h-8 w-8 place-items-center rounded-lg text-xl transition hover:bg-brand-soft"
               >
-                {e}
+                <Emoji char={e} />
               </button>
             ))}
           </div>

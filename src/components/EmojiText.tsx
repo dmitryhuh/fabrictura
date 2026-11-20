@@ -30,7 +30,7 @@ function candidates(char: string): string[] {
   return list;
 }
 
-export function Emoji({ char }: { char: string }) {
+export function Emoji({ char, className }: { char: string; className?: string }) {
   const [i, setI] = useState(0);
   const urls = candidates(char);
   // нет картинки: показываем обычный системный символ
@@ -42,19 +42,34 @@ export function Emoji({ char }: { char: string }) {
       draggable={false}
       loading="lazy"
       onError={() => setI(i + 1)}
-      className="inline-block h-[1.25em] w-[1.25em] align-[-0.25em]"
+      className={className ?? "inline-block h-[1.25em] w-[1.25em] align-[-0.25em]"}
     />
   );
 }
 
+// сколько эмодзи в сообщении, если в нём только они (1–3), иначе 0
+export function bigEmojiCount(text: string): number {
+  const t = text.trim();
+  if (!t) return 0;
+  const found = t.match(EMOJI_RE) ?? [];
+  if (found.length === 0 || found.length > 3) return 0;
+  return found.join("") === t.replace(/\s/g, "") ? found.length : 0;
+}
+
 // текст, в котором эмодзи заменены на картинки Apple
-export default function EmojiText({ text }: { text: string }) {
+export default function EmojiText({
+  text,
+  emojiClassName,
+}: {
+  text: string;
+  emojiClassName?: string;
+}) {
   const parts: ReactNode[] = [];
   let last = 0;
   for (const m of text.matchAll(EMOJI_RE)) {
     const at = m.index ?? 0;
     if (at > last) parts.push(text.slice(last, at));
-    parts.push(<Emoji key={at} char={m[0]} />);
+    parts.push(<Emoji key={at} char={m[0]} className={emojiClassName} />);
     last = at + m[0].length;
   }
   if (parts.length === 0) return <>{text}</>;
