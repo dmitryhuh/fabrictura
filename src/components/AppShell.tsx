@@ -1,9 +1,10 @@
+// ПУТЬ: src/components/AppShell.tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Search, Bell, MessageCircle, Gift, LogOut } from "lucide-react";
+import { Building2, Search, Bell, MessageCircle, DoorOpen } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import Avatar from "@/components/Avatar";
@@ -44,6 +45,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myId = me?.id;
+  const pathRef = useRef(pathname);
+  useEffect(() => {
+    pathRef.current = pathname;
+  }, [pathname]);
 
   const refresh = useCallback(async () => {
     const {
@@ -134,9 +139,37 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `recipient_id=eq.${myId}` },
-        () => {
+        async (payload) => {
+          const m = payload.new as {
+            id: string;
+            conversation_id: string;
+            sender_id: string;
+            content: string;
+            image_path: string | null;
+          };
           refreshUnreadMessages();
           window.dispatchEvent(new Event("msg-new"));
+
+          // если этот чат уже открыт, попап не нужен
+          const href = `/messages/${m.conversation_id}`;
+          if (pathRef.current === href) return;
+
+          const { data: sender } = await supabase
+            .from("profiles")
+            .select("username, display_name, avatar_url")
+            .eq("id", m.sender_id)
+            .single();
+          if (!sender) return;
+
+          setToast({
+            id: m.id,
+            name: sender.display_name || sender.username,
+            avatar: sender.avatar_url,
+            text: "отправил(а) вам сообщение",
+            href,
+          });
+          if (toastTimer.current) clearTimeout(toastTimer.current);
+          toastTimer.current = setTimeout(() => setToast(null), 5000);
         }
       )
       .on(
@@ -173,10 +206,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const wide = pathname.startsWith("/messages");
 
   const items: Item[] = [
-    { key: "feed", href: "/feed", label: "Лента", icon: Home },
+    { key: "feed", href: "/feed", label: "Лента", icon: Building2 },
     { key: "search", href: "/search", label: "Поиск", icon: Search },
     { key: "chats", href: "/messages", label: "Чаты", icon: MessageCircle, badge: unreadMsgs },
-    { key: "gifts", href: "#", label: "Подарки", icon: Gift, soon: true },
     { key: "notifications", href: "/notifications", label: "Уведомления", icon: Bell, badge: unread },
     { key: "profile", href: `/u/${me.username}`, label: "Профиль", avatar: true },
   ];
@@ -229,8 +261,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             className="fixed left-1/2 top-3 z-50 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center gap-3 rounded-xl border border-line bg-white p-3 shadow-lg"
           >
             <Avatar url={toast.avatar} name={toast.name} size={36} />
-            <p className="min-w-0 text-[15px]">
-              <b className="break-words">{toast.name}</b> {toast.text}
+            <p className="line-clamp-2 min-w-0 break-words text-[15px]">
+              <b>{toast.name}</b> {toast.text}
             </p>
           </Link>
         )}
@@ -286,7 +318,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             title="Выйти"
             className={`${row} mt-3 w-full text-muted hover:bg-brand-soft hover:text-ink`}
           >
-            <LogOut size={24} className="shrink-0" />
+            <DoorOpen size={24} className="shrink-0" />
             <span className="hidden xl:inline">Выйти</span>
           </button>
         </aside>
@@ -296,7 +328,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-white/90 px-4 backdrop-blur md:hidden">
             <Logo size={28} />
             <button onClick={logout} aria-label="Выйти" className="text-muted">
-              <LogOut size={22} />
+              <DoorOpen size={22} />
             </button>
           </header>
 

@@ -1,3 +1,4 @@
+// ПУТЬ: src/app/(main)/messages/layout.tsx
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -18,7 +19,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
         <ConversationList activeId={activeId} />
       </aside>
 
-      <section className={`${activeId ? "block" : "hidden"} md:block md:min-h-0`}>
+      <section className={`${activeId ? "block" : "hidden"} md:block md:h-full md:min-h-0`}>
         {children}
       </section>
     </div>

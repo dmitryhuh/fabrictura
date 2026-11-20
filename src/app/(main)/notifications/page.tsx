@@ -1,12 +1,14 @@
+// ПУТЬ: src/app/(main)/notifications/page.tsx
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Heart, MessageSquare, Repeat2, UserPlus } from "lucide-react";
+import { Heart, MessageCircle, MessageSquare, Repeat2, UserPlus } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import { timeAgo } from "@/lib/posts";
+import { ConversationItem } from "@/lib/messages";
 
 type Notif = {
   id: string;
@@ -50,6 +52,7 @@ function dayGroup(iso: string) {
 export default function NotificationsPage() {
   const { me, refreshUnread } = useMe();
   const [items, setItems] = useState<Notif[]>([]);
+  const [chats, setChats] = useState<ConversationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,13 +68,25 @@ export default function NotificationsPage() {
 
     if (error) setError(error.message);
     else setItems((data ?? []) as unknown as Notif[]);
+
+    // непрочитанные личные сообщения: по одной строке на диалог
+    const { data: convs } = await supabase.rpc("conversation_list");
+    setChats(
+      ((convs ?? []) as ConversationItem[]).filter(
+        (c) => c.unread_count > 0 && c.last_sender !== me.id
+      )
+    );
     setLoading(false);
   }, [me.id]);
 
   useEffect(() => {
     load();
     window.addEventListener("notif-new", load);
-    return () => window.removeEventListener("notif-new", load);
+    window.addEventListener("msg-new", load);
+    return () => {
+      window.removeEventListener("notif-new", load);
+      window.removeEventListener("msg-new", load);
+    };
   }, [load]);
 
   const unread = items.filter((n) => !n.read).length;
@@ -113,8 +128,42 @@ export default function NotificationsPage() {
 
       {error && <p className="text-sm text-red-500">{error}</p>}
       {loading && <p className="py-8 text-center text-muted">Загрузка...</p>}
-      {!loading && items.length === 0 && (
+      {!loading && items.length === 0 && chats.length === 0 && (
         <p className="py-10 text-center text-muted">Пока ничего нового.</p>
+      )}
+
+      {chats.length > 0 && (
+        <section>
+          <h2 className="mb-1 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+            Сообщения
+          </h2>
+          <div className="overflow-hidden rounded-xl border border-line bg-white">
+            {chats.map((c) => {
+              const name = c.other_name || c.other_username;
+              return (
+                <Link
+                  key={c.conv_id}
+                  href={`/messages/${c.conv_id}`}
+                  className="flex items-center gap-3 border-b border-line bg-brand-soft px-4 py-3 transition last:border-b-0 hover:bg-brand-soft"
+                >
+                  <div className="relative shrink-0">
+                    <Avatar url={c.other_avatar} name={name} size={40} />
+                    <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full bg-ink text-white ring-2 ring-white">
+                      <MessageCircle size={11} />
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[15px]">
+                      <b>{name}</b> отправил(а) вам{" "}
+                      {c.unread_count > 1 ? `сообщения (${c.unread_count})` : "сообщение"}
+                    </p>
+                    <p className="text-xs text-muted">{timeAgo(c.last_at)}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {groups.map((g) => (

@@ -1,6 +1,8 @@
+// ПУТЬ: src/components/PostCard.tsx
 import Link from "next/link";
 import { Bookmark, Heart, MessageSquare, Repeat2, Trash2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
+import EmojiText from "@/components/EmojiText";
 import { Post, timeAgo } from "@/lib/posts";
 
 type Props = {
@@ -52,7 +54,7 @@ export default function PostCard({ post, myId, onLike, onRepost, onBookmark, onD
 
           {post.content && (
             <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-              {post.content}
+              <EmojiText text={post.content} />
             </p>
           )}
 

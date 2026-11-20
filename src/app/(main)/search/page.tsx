@@ -1,3 +1,4 @@
+// ПУТЬ: src/app/(main)/search/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -12,7 +13,10 @@ type Result = {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
+  via?: string; // найден по дополнительному логину
 };
+
+type AliasRow = { alias: string; profiles: Omit<Result, "via"> | null };
 
 export default function SearchPage() {
   const [q, setQ] = useState("");
@@ -24,12 +28,26 @@ export default function SearchPage() {
   useEffect(() => {
     if (term.length < 2) return;
     const t = setTimeout(async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, username, display_name, avatar_url, bio")
-        .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
-        .limit(20);
-      setResults(data ?? []);
+      const [byProfile, byAlias] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, username, display_name, avatar_url, bio")
+          .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
+          .limit(20),
+        supabase
+          .from("profile_aliases")
+          .select("alias, profiles!user_id(id, username, display_name, avatar_url, bio)")
+          .ilike("alias", `%${term}%`)
+          .limit(20),
+      ]);
+
+      const list: Result[] = [...(byProfile.data ?? [])];
+      for (const row of (byAlias.data ?? []) as unknown as AliasRow[]) {
+        if (row.profiles && !list.some((r) => r.id === row.profiles!.id)) {
+          list.push({ ...row.profiles, via: row.alias });
+        }
+      }
+      setResults(list.slice(0, 20));
       setSearched(term);
     }, 300);
     return () => clearTimeout(t);
@@ -80,7 +98,10 @@ export default function SearchPage() {
                 <Avatar url={r.avatar_url} name={name} size={40} />
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{name}</p>
-                  <p className="truncate text-sm text-muted">@{r.username}</p>
+                  <p className="truncate text-sm text-muted">
+                    @{r.username}
+                    {r.via && <span> · также @{r.via}</span>}
+                  </p>
                   {r.bio && <p className="mt-0.5 truncate text-sm">{r.bio}</p>}
                 </div>
               </Link>

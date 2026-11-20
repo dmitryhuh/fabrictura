@@ -1,3 +1,4 @@
+// ПУТЬ: src/app/(main)/p/[id]/page.tsx
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -7,6 +8,7 @@ import { ArrowLeft, MessageSquare, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
+import EmojiText from "@/components/EmojiText";
 import PostCard from "@/components/PostCard";
 import { Post, RawPost, POST_SELECT, timeAgo, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
@@ -206,7 +208,7 @@ export default function PostPage() {
                     )}
                   </div>
                   <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                    {c.content}
+                    <EmojiText text={c.content} />
                   </p>
                 </div>
               </div>

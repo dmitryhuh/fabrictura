@@ -1,3 +1,4 @@
+// ПУТЬ: src/app/(main)/feed/page.tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -6,6 +7,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
+import EmojiButton, { insertEmoji } from "@/components/EmojiButton";
 import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
 import { checkImage, compressImage, imageExt } from "@/lib/images";
@@ -25,6 +27,7 @@ export default function FeedPage() {
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const areaRef = useRef<HTMLTextAreaElement>(null);
 
   const fetchPage = useCallback(
     async (before?: string): Promise<{ rows: Post[]; more: boolean } | null> => {
@@ -192,6 +195,7 @@ export default function FeedPage() {
         <div className="flex gap-3">
           <Avatar url={me.avatar_url} name={name} size={52} />
           <textarea
+            ref={areaRef}
             className="min-h-[44px] flex-1 resize-none bg-transparent pt-2 text-[16px] outline-none placeholder:text-muted"
             rows={1}
             maxLength={500}
@@ -233,6 +237,11 @@ export default function FeedPage() {
             >
               <ImagePlus size={22} />
             </button>
+            <EmojiButton
+              placement="bottom"
+              buttonClassName="grid h-10 w-10 place-items-center rounded-full text-brand-strong transition hover:bg-brand-soft"
+              onPick={(emoji) => insertEmoji(areaRef.current, text, emoji, 500, setText, true)}
+            />
             <span className="text-xs text-muted">{text.length}/500</span>
           </div>
           <button disabled={sending || (!text.trim() && !file)} className="btn-primary">

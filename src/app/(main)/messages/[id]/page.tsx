@@ -1,3 +1,4 @@
+// ПУТЬ: src/app/(main)/messages/[id]/page.tsx
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -7,6 +8,7 @@ import { ArrowLeft, Check, CheckCheck, ImagePlus, Send, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
+import EmojiButton, { insertEmoji } from "@/components/EmojiButton";
 import { checkImage, compressImage, imageExt } from "@/lib/images";
 import {
   MAX_LEN,
@@ -22,7 +24,7 @@ const PAGE = 30;
 
 // на телефоне чат открывается поверх всего экрана, на компьютере встаёт в правый столбец
 const SHELL =
-  "fixed inset-0 z-30 flex flex-col bg-canvas md:static md:z-auto md:h-full md:overflow-hidden md:rounded-xl md:border md:border-line md:bg-white";
+  "fixed inset-0 z-30 flex flex-col overflow-hidden bg-brand-soft md:relative md:inset-auto md:z-auto md:h-full md:rounded-xl md:border md:border-line";
 
 type Other = {
   id: string;
@@ -297,27 +299,29 @@ export default function ChatPage() {
 
   return (
     <div className={SHELL}>
-      <header className="flex items-center gap-2 border-b border-line bg-white px-3 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))]">
-        <Link
-          href="/messages"
-          aria-label="К сообщениям"
-          className="grid h-9 w-9 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink md:hidden"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <Link href={`/u/${other.username}`} className="flex min-w-0 items-center gap-3">
-          <Avatar url={other.avatar_url} name={otherName} size={40} />
-          <div className="min-w-0">
-            <p className="truncate font-semibold leading-tight">{otherName}</p>
-            <p className="truncate text-xs text-muted">@{other.username}</p>
-          </div>
-        </Link>
+      <header className="absolute inset-x-0 top-0 z-10 px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <div className="flex items-center gap-1 rounded-2xl border border-line bg-white/90 p-2 backdrop-blur">
+          <Link
+            href="/messages"
+            aria-label="К сообщениям"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink md:hidden"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <Link href={`/u/${other.username}`} className="flex min-w-0 items-center gap-3 pl-1">
+            <Avatar url={other.avatar_url} name={otherName} size={40} />
+            <div className="min-w-0">
+              <p className="truncate font-semibold leading-tight">{otherName}</p>
+              <p className="truncate text-xs text-muted">@{other.username}</p>
+            </div>
+          </Link>
+        </div>
       </header>
 
       <div
         ref={listRef}
         onScroll={onScroll}
-        className="min-h-0 flex-1 space-y-1.5 overflow-y-auto bg-canvas px-3 py-4"
+        className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-[calc(5rem+env(safe-area-inset-top))]"
       >
         {hasMore && (
           <button
@@ -335,21 +339,30 @@ export default function ChatPage() {
 
         {messages.map((m, i) => {
           const mine = m.sender_id === me.id;
-          const newDay = i === 0 || dayLabel(messages[i - 1].created_at) !== dayLabel(m.created_at);
+          const prev = messages[i - 1];
+          const next = messages[i + 1];
+          const newDay = !prev || dayLabel(prev.created_at) !== dayLabel(m.created_at);
+          const first = newDay || prev.sender_id !== m.sender_id;
+          const last =
+            !next ||
+            next.sender_id !== m.sender_id ||
+            dayLabel(next.created_at) !== dayLabel(m.created_at);
           const url = m.image_path ? signed[m.image_path] : null;
           return (
             <div key={m.id}>
               {newDay && (
-                <p className="py-2 text-center text-xs font-medium text-muted">
-                  {dayLabel(m.created_at)}
+                <p className="my-3 flex justify-center">
+                  <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-muted">
+                    {dayLabel(m.created_at)}
+                  </span>
                 </p>
               )}
-              <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div className={`flex ${mine ? "justify-end" : "justify-start"} ${first ? "mt-2" : "mt-0.5"}`}>
                 <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 ${
+                  className={`max-w-[80%] rounded-2xl px-3 py-1.5 ${
                     mine
-                      ? "rounded-br-md bg-ink text-white"
-                      : "rounded-bl-md border border-line bg-white"
+                      ? `bg-ink text-white ${last ? "rounded-br-sm" : ""}`
+                      : `border border-line bg-white ${last ? "rounded-bl-sm" : ""}`
                   }`}
                 >
                   {m.image_path &&
@@ -359,11 +372,11 @@ export default function ChatPage() {
                           src={url}
                           alt=""
                           onLoad={stickToBottom}
-                          className="mb-1 max-h-72 w-64 max-w-full rounded-lg object-cover sm:w-72"
+                          className="mb-1 max-h-72 w-64 max-w-full rounded-xl object-cover sm:w-72"
                         />
                       </a>
                     ) : (
-                      <div className="mb-1 h-40 w-64 max-w-full animate-pulse rounded-lg bg-brand-soft sm:w-72" />
+                      <div className="mb-1 h-40 w-64 max-w-full animate-pulse rounded-xl bg-brand-soft sm:w-72" />
                     ))}
                   {m.content && (
                     <p className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
@@ -371,7 +384,7 @@ export default function ChatPage() {
                     </p>
                   )}
                   <p
-                    className={`mt-0.5 flex items-center justify-end gap-1 text-[11px] ${
+                    className={`flex items-center justify-end gap-1 text-[11px] leading-tight ${
                       mine ? "text-white/60" : "text-muted"
                     }`}
                   >
@@ -392,11 +405,11 @@ export default function ChatPage() {
 
       <form
         onSubmit={send}
-        className="border-t border-line bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+        className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1"
       >
         {preview && (
-          <div className="relative mb-2 inline-block">
-            <img src={preview} alt="" className="h-20 rounded-lg border border-line object-cover" />
+          <div className="relative mb-2 inline-block rounded-xl border border-line bg-white p-1.5">
+            <img src={preview} alt="" className="h-20 rounded-lg object-cover" />
             <button
               type="button"
               onClick={clearFile}
@@ -410,18 +423,21 @@ export default function ChatPage() {
 
         {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
 
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-1 rounded-3xl border border-line bg-white p-1.5">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             aria-label="Добавить картинку"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
           >
             <ImagePlus size={22} />
           </button>
+          <EmojiButton
+            onPick={(emoji) => insertEmoji(areaRef.current, text, emoji, MAX_LEN, setText, true)}
+          />
           <textarea
             ref={areaRef}
-            className="input max-h-32 min-h-11 min-w-0 flex-1 resize-none !py-2.5"
+            className="max-h-32 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-base outline-none placeholder:text-muted"
             rows={1}
             maxLength={MAX_LEN}
             placeholder="Сообщение"
@@ -442,7 +458,7 @@ export default function ChatPage() {
           <button
             disabled={sending || (!text.trim() && !file)}
             aria-label="Отправить"
-            className="btn-primary grid h-11 w-11 shrink-0 place-items-center !p-0"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ink text-white transition hover:bg-brand-hover active:scale-95 disabled:opacity-40"
           >
             <Send size={18} />
           </button>

@@ -1,17 +1,26 @@
+// ПУТЬ: src/app/(main)/u/[username]/page.tsx
 "use client";
 
 import { Dispatch, SetStateAction, useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Camera, Cake, EyeOff } from "lucide-react";
+import { Camera, Cake, EyeOff, X } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
 import BirthDatePicker from "@/components/BirthDatePicker";
+import EmojiButton, { insertEmoji } from "@/components/EmojiButton";
 import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
 import { checkImage, compressImage, imageExt } from "@/lib/images";
 import { birthError, formatBirth } from "@/lib/birthday";
+import {
+  MAX_ALIASES,
+  USERNAME_HINT,
+  USERNAME_RE,
+  UsernameStatus,
+  useUsernameStatus,
+} from "@/lib/username";
 
 type Profile = {
   id: string;
@@ -22,6 +31,23 @@ type Profile = {
   bio: string | null;
   birth_date: string | null;
 };
+
+// одинаковый размер кнопок рядом с аватаркой
+const SIDE_BTN = "h-10 w-36 !px-0 !py-0 !text-sm";
+
+const LABEL = "block px-1 text-xs font-semibold uppercase tracking-wide text-muted";
+
+// подсказка под полем юзернейма: правила по умолчанию, затем красная или зелёная проверка
+function StatusLine({ status, same }: { status: UsernameStatus; same: React.ReactNode }) {
+  let node: React.ReactNode;
+  if (status === "same") node = same;
+  else if (status === "empty") node = <span className="text-muted">{USERNAME_HINT}</span>;
+  else if (status === "invalid") node = <span className="text-red-500">{USERNAME_HINT}</span>;
+  else if (status === "checking") node = <span className="text-muted">Проверяем...</span>;
+  else if (status === "taken") node = <span className="text-red-500">Юзернейм занят</span>;
+  else node = <span className="text-green-600">Юзернейм свободен</span>;
+  return <p className="mt-1.5 min-h-5 px-1 text-xs">{node}</p>;
+}
 
 type Tab = "posts" | "reposts" | "saved";
 
@@ -47,6 +73,9 @@ export default function ProfilePage() {
   const [following, setFollowing] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [aliases, setAliases] = useState<string[]>([]);
+  const [aliasList, setAliasList] = useState<string[]>([]);
+  const [aliasDraft, setAliasDraft] = useState("");
   const [userInput, setUserInput] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [bioInput, setBioInput] = useState("");
@@ -55,6 +84,11 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const coverRef = useRef<HTMLInputElement>(null);
+  const bioRef = useRef<HTMLTextAreaElement>(null);
+
+  const mainName = userInput.trim().toLowerCase();
+  const mainStatus = useUsernameStatus(mainName, [profile?.username ?? ""]);
+  const aliasStatus = useUsernameStatus(aliasDraft, [mainName, ...aliasList]);
 
   const load = useCallback(async () => {
     const { data: p } = await supabase
@@ -64,6 +98,19 @@ export default function ProfilePage() {
       .maybeSingle();
 
     if (!p) {
+      // возможно, это дополнительный логин: ведём на профиль владельца
+      const { data: al } = await supabase
+        .from("profile_aliases")
+        .select("profiles!user_id(username)")
+        .eq("alias", username)
+        .maybeSingle();
+      const owner = (al as unknown as { profiles: { username: string } | null } | null)?.profiles
+        ?.username;
+      if (owner) {
+        setProfile(null);
+        router.replace(`/u/${owner}`);
+        return;
+      }
       setNotFound(true);
       return;
     }
@@ -71,7 +118,7 @@ export default function ProfilePage() {
     setProfile(p);
 
     const mine = p.id === me.id;
-    const [a, b, c, d, e, f] = await Promise.all([
+    const [a, b, c, d, e, f, g] = await Promise.all([
       supabase.from("follows").select("*", { count: "exact", head: true }).eq("following_id", p.id),
       supabase.from("follows").select("*", { count: "exact", head: true }).eq("follower_id", p.id),
       supabase
@@ -99,15 +146,17 @@ export default function ProfilePage() {
             .order("created_at", { ascending: false })
             .limit(50)
         : Promise.resolve({ data: [] }),
+      supabase.from("profile_aliases").select("alias").eq("user_id", p.id).order("created_at"),
     ]);
 
+    setAliases((g.data ?? []).map((r) => r.alias));
     setFollowers(a.count ?? 0);
     setFollowing(b.count ?? 0);
     setIsFollowing((c.count ?? 0) > 0);
     setPosts(await withLiked((d.data ?? []) as unknown as RawPost[], me.id));
     setReposts(await fromJoin(e.data, me.id));
     setSaved(await fromJoin(f.data, me.id));
-  }, [username, me.id]);
+  }, [username, me.id, router]);
 
   useEffect(() => {
     load();
@@ -164,8 +213,34 @@ export default function ProfilePage() {
     setNameInput(profile?.display_name ?? "");
     setBioInput(profile?.bio ?? "");
     setBirthInput(profile?.birth_date ?? "");
+    setAliasList(aliases);
+    setAliasDraft("");
     setError("");
     setEditing(true);
+  }
+
+  function addAlias() {
+    const a = aliasDraft.trim().toLowerCase();
+    if (!a) return;
+    if (!USERNAME_RE.test(a)) {
+      setError(`Юзернейм: ${USERNAME_HINT}`);
+      return;
+    }
+    if (a === userInput.trim().toLowerCase()) {
+      setError("Это ваш основной юзернейм");
+      return;
+    }
+    if (aliasList.includes(a)) {
+      setError("Этот юзернейм уже в списке");
+      return;
+    }
+    if (aliasList.length >= MAX_ALIASES) {
+      setError(`Не больше ${MAX_ALIASES} дополнительных юзернеймов`);
+      return;
+    }
+    setError("");
+    setAliasList((l) => [...l, a]);
+    setAliasDraft("");
   }
 
   async function saveProfile(e: React.FormEvent) {
@@ -173,8 +248,9 @@ export default function ProfilePage() {
     setError("");
 
     const newName = userInput.trim().toLowerCase();
-    if (!/^[a-z0-9_]{3,20}$/.test(newName)) {
-      setError("Логин: 3–20 символов, латиница, цифры и _");
+    // старый логин не проверяем, правило действует только при смене
+    if (newName !== profile?.username && !USERNAME_RE.test(newName)) {
+      setError(`Юзернейм: ${USERNAME_HINT}`);
       return;
     }
     if (birthInput) {
@@ -183,6 +259,11 @@ export default function ProfilePage() {
         setError(problem);
         return;
       }
+    }
+
+    if (aliasList.includes(newName)) {
+      setError("Этот юзернейм уже в списке дополнительных, уберите его оттуда");
+      return;
     }
 
     setSaving(true);
@@ -198,10 +279,50 @@ export default function ProfilePage() {
     setSaving(false);
 
     if (error) {
-      if (error.code === "23505") setError("Этот логин уже занят");
+      if (error.code === "23505") setError("Этот юзернейм уже занят");
+      else if (error.message.includes("username_invalid")) setError(`Юзернейм: ${USERNAME_HINT}`);
       else if (error.message.includes("profiles_birth_check"))
         setError("Недопустимая дата рождения");
       else setError(error.message);
+      return;
+    }
+
+    // дополнительные логины: удаляем убранные, добавляем новые
+    const toDelete = aliases.filter((a) => !aliasList.includes(a));
+    const toAdd = aliasList.filter((a) => !aliases.includes(a));
+    let aliasError = "";
+    if (toDelete.length > 0) {
+      const { error: delErr } = await supabase
+        .from("profile_aliases")
+        .delete()
+        .eq("user_id", me.id)
+        .in("alias", toDelete);
+      if (delErr) aliasError = delErr.message;
+    }
+    if (!aliasError && toAdd.length > 0) {
+      const { error: addErr } = await supabase
+        .from("profile_aliases")
+        .insert(toAdd.map((alias) => ({ alias, user_id: me.id })));
+      if (addErr) {
+        if (addErr.code === "23505") aliasError = "Один из дополнительных юзернеймов уже занят";
+        else if (addErr.message.includes("alias_limit"))
+          aliasError = `Не больше ${MAX_ALIASES} дополнительных юзернеймов`;
+        else if (addErr.message.includes("alias_invalid"))
+          aliasError = `Юзернейм: ${USERNAME_HINT}`;
+        else aliasError = addErr.message;
+      }
+    }
+    if (aliasError) {
+      // остальное уже сохранено, показываем актуальный список и остаёмся в редактировании
+      const { data: fresh } = await supabase
+        .from("profile_aliases")
+        .select("alias")
+        .eq("user_id", me.id)
+        .order("created_at");
+      const list = (fresh ?? []).map((r) => r.alias);
+      setAliases(list);
+      setAliasList(list);
+      setError(aliasError);
       return;
     }
 
@@ -358,7 +479,7 @@ export default function ProfilePage() {
           {profile.cover_url && (
             <img src={profile.cover_url} alt="" className="h-full w-full object-cover" />
           )}
-          {isMe && (
+          {isMe && editing && (
             <>
               <button
                 onClick={() => coverRef.current?.click()}
@@ -388,7 +509,7 @@ export default function ProfilePage() {
               <div className="rounded-full ring-4 ring-white">
                 <Avatar url={profile.avatar_url} name={name} size={112} />
               </div>
-              {isMe && (
+              {isMe && editing && (
                 <>
                   <button
                     onClick={() => fileRef.current?.click()}
@@ -419,9 +540,12 @@ export default function ProfilePage() {
                 </button>
               )
             ) : (
-              <div className="flex gap-2">
-                <button onClick={openChat} className="btn-ghost">Написать</button>
-                <button onClick={toggleFollow} className={isFollowing ? "btn-ghost" : "btn-primary"}>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button onClick={openChat} className={`btn-ghost ${SIDE_BTN}`}>Написать</button>
+                <button
+                  onClick={toggleFollow}
+                  className={`${isFollowing ? "btn-ghost" : "btn-primary"} ${SIDE_BTN}`}
+                >
                   {isFollowing ? "Вы подписаны" : "Подписаться"}
                 </button>
               </div>
@@ -429,41 +553,153 @@ export default function ProfilePage() {
         </div>
         
           {editing ? (
-            <form onSubmit={saveProfile} className="mt-5 space-y-3">
-              <input
-                className="input"
-                maxLength={30}
-                placeholder="Имя (до 30 символов)"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-              />
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">@</span>
+            <form onSubmit={saveProfile} className="mt-5 space-y-5">
+              <h2 className="text-lg font-bold">Редактирование профиля</h2>
+
+              <div className="space-y-1.5">
+                <label htmlFor="edit-name" className={LABEL}>
+                  Имя
+                </label>
                 <input
-                  className="input pl-9"
-                  maxLength={20}
-                  placeholder="Логин"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value.toLowerCase().replace(/\s/g, ""))}
+                  id="edit-name"
+                  className="input"
+                  maxLength={30}
+                  placeholder="Как вас зовут"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
                 />
               </div>
-              <textarea
-                className="input resize-none"
-                rows={3}
-                maxLength={160}
-                placeholder="О себе (до 160 символов)"
-                value={bioInput}
-                onChange={(e) => setBioInput(e.target.value)}
-              />
-              <BirthDatePicker value={birthInput} onChange={setBirthInput} />
+
+              <div>
+                <label htmlFor="edit-username" className={LABEL}>
+                  Юзернейм
+                </label>
+                <div className="relative mt-1.5">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">@</span>
+                  <input
+                    id="edit-username"
+                    className="input pl-9"
+                    maxLength={20}
+                    placeholder="Юзернейм"
+                    value={userInput}
+                    onChange={(e) => setUserInput(e.target.value.toLowerCase().replace(/\s/g, ""))}
+                  />
+                </div>
+                {aliasList.includes(mainName) ? (
+                  <p className="mt-1.5 min-h-5 px-1 text-xs text-red-500">
+                    Он есть в дополнительных, уберите его оттуда
+                  </p>
+                ) : (
+                  <StatusLine
+                    status={mainStatus}
+                    same={<span className="text-muted">{USERNAME_HINT}</span>}
+                  />
+                )}
+              </div>
+
+              <div>
+                <p className={LABEL}>
+                  Дополнительные юзернеймы ({aliasList.length}/{MAX_ALIASES})
+                </p>
+                {aliasList.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {aliasList.map((a) => (
+                      <span
+                        key={a}
+                        className="inline-flex items-center gap-1 rounded-full bg-brand-soft py-1 pl-3 pr-1.5 text-sm"
+                      >
+                        @{a}
+                        <button
+                          type="button"
+                          onClick={() => setAliasList((l) => l.filter((x) => x !== a))}
+                          aria-label={`Удалить ${a}`}
+                          className="grid h-5 w-5 place-items-center rounded-full text-muted transition hover:bg-white hover:text-ink"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {aliasList.length < MAX_ALIASES && (
+                  <>
+                    <div className="mt-2 flex gap-2">
+                      <div className="relative flex-1">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">
+                          @
+                        </span>
+                        <input
+                          className="input pl-9"
+                          maxLength={20}
+                          placeholder="Новый юзернейм"
+                          aria-label="Новый дополнительный юзернейм"
+                          value={aliasDraft}
+                          onChange={(e) =>
+                            setAliasDraft(e.target.value.toLowerCase().replace(/\s/g, ""))
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addAlias();
+                            }
+                          }}
+                        />
+                      </div>
+                      <button type="button" onClick={addAlias} className="btn-ghost shrink-0">
+                        Добавить
+                      </button>
+                    </div>
+                    <StatusLine
+                      status={aliasStatus}
+                      same={<span className="text-red-500">Этот юзернейм уже у вас</span>}
+                    />
+                  </>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="flex items-end justify-between">
+                  <label htmlFor="edit-bio" className={LABEL}>
+                    О себе
+                  </label>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-muted">{bioInput.length}/160</span>
+                    <EmojiButton
+                      placement="bottom"
+                      align="right"
+                      buttonClassName="grid h-8 w-8 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
+                      onPick={(emoji) => insertEmoji(bioRef.current, bioInput, emoji, 160, setBioInput)}
+                    />
+                  </div>
+                </div>
+                <textarea
+                  id="edit-bio"
+                  ref={bioRef}
+                  className="input resize-none"
+                  rows={3}
+                  maxLength={160}
+                  placeholder="Расскажите о себе"
+                  value={bioInput}
+                  onChange={(e) => setBioInput(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <p className={LABEL}>Дата рождения</p>
+                <BirthDatePicker value={birthInput} onChange={setBirthInput} />
+              </div>
 
               {error && <p className="text-sm text-red-500">{error}</p>}
 
               <div className="flex gap-2">
-                <button disabled={saving} className="btn-primary">
+                <button disabled={saving} className="btn-primary h-10 !px-6 !py-0 !text-sm">
                   {saving ? "Сохраняем..." : "Сохранить"}
                 </button>
-                <button type="button" onClick={() => setEditing(false)} className="btn-ghost">
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="btn-ghost h-10 !px-6 !py-0"
+                >
                   Отмена
                 </button>
               </div>
@@ -472,6 +708,17 @@ export default function ProfilePage() {
             <div className="mt-4">
               <h1 className="text-2xl font-bold">{name}</h1>
               <p className="text-muted">@{profile.username}</p>
+              {aliases.length > 0 && (
+                <p className="text-sm text-muted">
+                  <span className="text-ink">а также:</span>{" "}
+                  {aliases.map((a, i) => (
+                    <span key={a}>
+                      <span className="underline decoration-muted/60 underline-offset-2">@{a}</span>
+                      {i < aliases.length - 1 && ", "}
+                    </span>
+                  ))}
+                </p>
+              )}
               {profile.bio && (
                 <p className="mt-3 whitespace-pre-wrap text-[17px]">{profile.bio}</p>
               )}

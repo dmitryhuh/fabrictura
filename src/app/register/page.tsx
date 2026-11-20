@@ -1,3 +1,4 @@
+// ПУТЬ: src/app/register/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -10,8 +11,8 @@ import PasswordInput from "@/components/PasswordInput";
 import BirthDatePicker from "@/components/BirthDatePicker";
 import OtpForm from "@/components/OtpForm";
 import { birthError } from "@/lib/birthday";
+import { USERNAME_HINT, USERNAME_RE } from "@/lib/username";
 
-const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 function friendlyError(msg: string) {
   const m = msg.toLowerCase();
@@ -91,7 +92,7 @@ export default function RegisterPage() {
     setError("");
 
     if (!USERNAME_RE.test(username)) {
-      setError("Логин: 3–20 символов, латиница, цифры и _");
+      setError(`Логин: ${USERNAME_HINT}`);
       return;
     }
 
@@ -142,7 +143,7 @@ export default function RegisterPage() {
   const usernameValid = USERNAME_RE.test(username);
   let usernameHint: React.ReactNode = null;
   if (username && !usernameValid) {
-    usernameHint = <span className="text-muted">3–20 символов: латиница, цифры, _</span>;
+    usernameHint = <span className="text-muted">{USERNAME_HINT}</span>;
   } else if (usernameValid && check?.name === username) {
     usernameHint = check.taken ? (
       <span className="text-red-500">Логин занят</span>
