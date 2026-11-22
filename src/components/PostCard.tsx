@@ -1,6 +1,9 @@
 // ПУТЬ: src/components/PostCard.tsx
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { Bookmark, Heart, MessageSquare, Repeat2, Trash2 } from "lucide-react";
+import { Bookmark, Heart, MessageSquare, Pencil, Repeat2, Trash2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import EmojiText from "@/components/EmojiText";
 import { Post, timeAgo } from "@/lib/posts";
@@ -12,14 +15,44 @@ type Props = {
   onRepost: (post: Post) => void;
   onBookmark: (post: Post) => void;
   onDelete: (post: Post) => void;
+  onEdit: (post: Post, content: string) => Promise<boolean>;
 };
 
 const btn =
   "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm text-muted transition hover:bg-brand-soft";
 
-export default function PostCard({ post, myId, onLike, onRepost, onBookmark, onDelete }: Props) {
+export default function PostCard({
+  post,
+  myId,
+  onLike,
+  onRepost,
+  onBookmark,
+  onDelete,
+  onEdit,
+}: Props) {
   const username = post.profiles?.username ?? "";
   const name = post.profiles?.display_name || username || "?";
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    setDraft(post.content);
+    setEditing(true);
+  }
+
+  async function save() {
+    const text = draft.trim();
+    if (!text && !post.image_url) return;
+    if (text === post.content) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    const ok = await onEdit(post, text);
+    setSaving(false);
+    if (ok) setEditing(false);
+  }
 
   return (
     <article className="rounded-xl border border-line bg-white p-4">
@@ -39,23 +72,64 @@ export default function PostCard({ post, myId, onLike, onRepost, onBookmark, onD
               <span className="font-semibold hover:underline">{name}</span>
               <span className="text-sm text-muted">
                 {" "}@{username} · {timeAgo(post.created_at)}
+                {post.edited_at && " · изменено"}
               </span>
             </Link>
             {post.author_id === myId && (
-              <button
-                onClick={() => onDelete(post)}
-                aria-label="Удалить пост"
-                className="text-muted transition hover:text-red-500"
-              >
-                <Trash2 size={16} />
-              </button>
+              <div className="flex items-center gap-3">
+                {!editing && (
+                  <button
+                    onClick={startEdit}
+                    aria-label="Редактировать пост"
+                    className="text-muted transition hover:text-ink"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
+                <button
+                  onClick={() => onDelete(post)}
+                  aria-label="Удалить пост"
+                  className="text-muted transition hover:text-red-500"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             )}
           </div>
 
-          {post.content && (
-            <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-              <EmojiText text={post.content} />
-            </p>
+          {editing ? (
+            <div className="mt-1">
+              <textarea
+                autoFocus
+                className="input resize-none"
+                rows={3}
+                maxLength={500}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-xs text-muted">{draft.length}/500</span>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setEditing(false)} className="btn-ghost">
+                    Отмена
+                  </button>
+                  <button
+                    type="button"
+                    onClick={save}
+                    disabled={saving || (!draft.trim() && !post.image_url)}
+                    className="btn-primary !py-1.5 text-sm"
+                  >
+                    {saving ? "Сохраняем..." : "Сохранить"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            post.content && (
+              <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                <EmojiText text={post.content} />
+              </p>
+            )
           )}
 
           {post.image_url && (

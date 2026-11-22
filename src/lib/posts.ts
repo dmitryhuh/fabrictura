@@ -4,6 +4,7 @@ export type Post = {
   id: string;
   content: string;
   created_at: string;
+  edited_at: string | null;
   author_id: string;
   image_url: string | null;
   profiles: {
@@ -38,7 +39,7 @@ export type RawPost = Omit<
 };
 
 export const POST_SELECT =
-  "id, content, created_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url), likes(count), comments(count), reposts(count)";
+  "id, content, created_at, edited_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url), likes(count), comments(count), reposts(count)";
 
 // превращает посты из базы в готовые для показа и отмечает мои лайки, репосты и избранное
 export async function withLiked(rows: RawPost[], myId: string): Promise<Post[]> {

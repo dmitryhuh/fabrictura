@@ -34,6 +34,7 @@ const NOTIF_TEXT: Record<string, string> = {
   comment: "прокомментировал(а) ваш пост",
   follow: "подписался(лась) на вас",
   repost: "репостнул(а) вашу запись",
+  comment_like: "оценил(а) ваш комментарий",
 };
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

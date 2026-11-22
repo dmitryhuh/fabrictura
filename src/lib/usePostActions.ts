@@ -48,6 +48,21 @@ export function usePostActions(
     if (error) reload();
   }
 
+  async function editPost(post: Post, content: string): Promise<boolean> {
+    const { data, error } = await supabase
+      .from("posts")
+      .update({ content })
+      .eq("id", post.id)
+      .select("content, edited_at")
+      .single();
+    if (error) {
+      onError(error.message);
+      return false;
+    }
+    patch(post.id, (p) => ({ ...p, content: data.content, edited_at: data.edited_at }));
+    return true;
+  }
+
   async function removePost(post: Post): Promise<boolean> {
     const { error } = await supabase.from("posts").delete().eq("id", post.id);
     if (error) {
@@ -67,5 +82,5 @@ export function usePostActions(
     return true;
   }
 
-  return { toggleLike, toggleRepost, toggleBookmark, removePost };
+  return { toggleLike, toggleRepost, toggleBookmark, removePost, editPost };
 }

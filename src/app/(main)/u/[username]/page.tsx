@@ -170,7 +170,7 @@ export default function ProfilePage() {
     setSaved(apply);
   }, []);
 
-  const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+  const { toggleLike, toggleRepost, toggleBookmark, removePost, editPost } = usePostActions(
     me.id,
     setAll,
     load,
@@ -773,6 +773,7 @@ export default function ProfilePage() {
           onRepost={repost}
           onBookmark={bookmark}
           onDelete={removePost}
+          onEdit={editPost}
         />
       ))}
     </div>

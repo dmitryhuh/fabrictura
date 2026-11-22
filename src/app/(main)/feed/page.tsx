@@ -85,7 +85,7 @@ export default function FeedPage() {
     setLoadingMore(false);
   }
 
-    const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+    const { toggleLike, toggleRepost, toggleBookmark, removePost, editPost } = usePostActions(
     me.id,
     setPosts,
     loadPosts,
@@ -283,6 +283,7 @@ export default function FeedPage() {
           onRepost={toggleRepost}
           onBookmark={toggleBookmark}
           onDelete={removePost}
+          onEdit={editPost}
         />
       ))}
 

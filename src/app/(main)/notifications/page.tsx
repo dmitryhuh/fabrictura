@@ -12,7 +12,7 @@ import { ConversationItem } from "@/lib/messages";
 
 type Notif = {
   id: string;
-  type: "like" | "comment" | "follow" | "repost";
+  type: "like" | "comment" | "follow" | "repost" | "comment_like";
   post_id: string | null;
   created_at: string;
   read: boolean;
@@ -28,6 +28,7 @@ const TEXT = {
   comment: "прокомментировал(а) ваш пост",
   follow: "подписался(лась) на вас",
   repost: "репостнул(а) вашу запись",
+  comment_like: "оценил(а) ваш комментарий",
 };
 
 const BADGE = {
@@ -35,6 +36,7 @@ const BADGE = {
   comment: { icon: MessageSquare, color: "bg-ink" },
   follow: { icon: UserPlus, color: "bg-ink" },
   repost: { icon: Repeat2, color: "bg-emerald-600" },
+  comment_like: { icon: Heart, color: "bg-rose-500" },
 };
 
 function dayGroup(iso: string) {

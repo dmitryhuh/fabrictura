@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, MessageSquare, Trash2 } from "lucide-react";
+import { ArrowLeft, Heart, MessageSquare, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
@@ -19,12 +19,19 @@ type Comment = {
   id: string;
   content: string;
   created_at: string;
+  edited_at: string | null;
   author_id: string;
+  likes_count: number;
+  liked: boolean;
   profiles: {
     username: string;
     display_name: string | null;
     avatar_url: string | null;
   } | null;
+};
+
+type RawComment = Omit<Comment, "likes_count" | "liked"> & {
+  comment_likes: { count: number }[];
 };
 
 export default function PostPage() {
@@ -39,6 +46,9 @@ export default function PostPage() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
     const [p, c] = await Promise.all([
@@ -46,7 +56,7 @@ export default function PostPage() {
       supabase
         .from("comments")
         .select(
-          "id, content, created_at, author_id, profiles!author_id(username, display_name, avatar_url)"
+          "id, content, created_at, edited_at, author_id, profiles!author_id(username, display_name, avatar_url), comment_likes(count)"
         )
         .eq("post_id", id)
         .order("created_at", { ascending: true }),
@@ -57,8 +67,29 @@ export default function PostPage() {
       setLoading(false);
       return;
     }
+
+    const raw = (c.data ?? []) as unknown as RawComment[];
+    let mine = new Set<string>();
+    if (raw.length > 0) {
+      const { data: l } = await supabase
+        .from("comment_likes")
+        .select("comment_id")
+        .eq("user_id", me.id)
+        .in(
+          "comment_id",
+          raw.map((r) => r.id)
+        );
+      mine = new Set((l ?? []).map((x) => x.comment_id));
+    }
+
     setPosts(await withLiked([p.data as unknown as RawPost], me.id));
-    setComments((c.data ?? []) as unknown as Comment[]);
+    setComments(
+      raw.map(({ comment_likes, ...r }) => ({
+        ...r,
+        likes_count: comment_likes?.[0]?.count ?? 0,
+        liked: mine.has(r.id),
+      }))
+    );
     setLoading(false);
   }, [id, me.id]);
 
@@ -66,7 +97,7 @@ export default function PostPage() {
     load();
   }, [load]);
 
-  const { toggleLike, toggleRepost, toggleBookmark, removePost } = usePostActions(
+  const { toggleLike, toggleRepost, toggleBookmark, removePost, editPost } = usePostActions(
     me.id,
     setPosts,
     load,
@@ -106,6 +137,53 @@ export default function PostPage() {
     await load();
   }
 
+  async function toggleCommentLike(c: Comment) {
+    const on = c.liked;
+    setComments((prev) =>
+      prev.map((x) =>
+        x.id === c.id ? { ...x, liked: !on, likes_count: x.likes_count + (on ? -1 : 1) } : x
+      )
+    );
+    const { error } = on
+      ? await supabase.from("comment_likes").delete().eq("comment_id", c.id).eq("user_id", me.id)
+      : await supabase.from("comment_likes").insert({ comment_id: c.id, user_id: me.id });
+    if (error) load();
+  }
+
+  function startEditComment(c: Comment) {
+    setError("");
+    setDraft(c.content);
+    setEditingId(c.id);
+  }
+
+  async function saveComment(c: Comment) {
+    const content = draft.trim();
+    if (!content) return;
+    if (content === c.content) {
+      setEditingId(null);
+      return;
+    }
+    setSavingEdit(true);
+    setError("");
+    const { data, error } = await supabase
+      .from("comments")
+      .update({ content })
+      .eq("id", c.id)
+      .select("content, edited_at")
+      .single();
+    setSavingEdit(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setComments((prev) =>
+      prev.map((x) =>
+        x.id === c.id ? { ...x, content: data.content, edited_at: data.edited_at } : x
+      )
+    );
+    setEditingId(null);
+  }
+
   if (loading) return <p className="py-16 text-center text-muted">Загрузка...</p>;
   if (notFound || !posts[0])
     return <p className="py-16 text-center text-muted">Пост не найден.</p>;
@@ -133,6 +211,7 @@ export default function PostPage() {
         onRepost={toggleRepost}
         onBookmark={toggleBookmark}
         onDelete={handleDeletePost}
+        onEdit={editPost}
       />
 
       <form
@@ -180,7 +259,9 @@ export default function PostPage() {
           {comments.map((c) => {
             const username = c.profiles?.username ?? "";
             const cname = c.profiles?.display_name || username || "?";
-            const canDelete = c.author_id === me.id || post.author_id === me.id;
+            const isAuthor = c.author_id === me.id;
+            const canDelete = isAuthor || post.author_id === me.id;
+            const isEditing = editingId === c.id;
             return (
               <div
                 key={c.id}
@@ -195,21 +276,80 @@ export default function PostPage() {
                       <span className="font-semibold hover:underline">{cname}</span>
                       <span className="text-sm text-muted">
                         {" "}@{username} · {timeAgo(c.created_at)}
+                        {c.edited_at && " · изменено"}
                       </span>
                     </Link>
-                    {canDelete && (
-                      <button
-                        onClick={() => deleteComment(c.id)}
-                        aria-label="Удалить комментарий"
-                        className="text-muted transition hover:text-red-500"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {isAuthor && !isEditing && (
+                        <button
+                          onClick={() => startEditComment(c)}
+                          aria-label="Редактировать комментарий"
+                          className="text-muted transition hover:text-ink"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button
+                          onClick={() => deleteComment(c.id)}
+                          aria-label="Удалить комментарий"
+                          className="text-muted transition hover:text-red-500"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-                    <EmojiText text={c.content} />
-                  </p>
+
+                  {isEditing ? (
+                    <div className="mt-1">
+                      <textarea
+                        autoFocus
+                        className="input resize-none"
+                        rows={2}
+                        maxLength={MAX}
+                        value={draft}
+                        onChange={(e) => setDraft(e.target.value)}
+                      />
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-xs text-muted">
+                          {draft.length}/{MAX}
+                        </span>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            className="btn-ghost"
+                          >
+                            Отмена
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveComment(c)}
+                            disabled={savingEdit || !draft.trim()}
+                            className="btn-primary !py-1.5 text-sm"
+                          >
+                            {savingEdit ? "Сохраняем..." : "Сохранить"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="mt-0.5 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+                        <EmojiText text={c.content} />
+                      </p>
+                      <button
+                        onClick={() => toggleCommentLike(c)}
+                        className={`-ml-2 mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-sm transition hover:bg-brand-soft ${
+                          c.liked ? "text-rose-500" : "text-muted hover:text-rose-500"
+                        }`}
+                      >
+                        <Heart size={16} className={c.liked ? "fill-current" : ""} />
+                        {c.likes_count}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );
