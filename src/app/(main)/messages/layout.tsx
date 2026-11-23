@@ -1,4 +1,4 @@
-// ПУТЬ: src/app/(main)/messages/layout.tsx
+
 "use client";
 
 import { usePathname } from "next/navigation";
@@ -6,7 +6,7 @@ import ConversationList from "@/components/ConversationList";
 
 export default function MessagesLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  // /messages/<id> -> id
+  
   const activeId = pathname.split("/")[2] ?? null;
 
   return (

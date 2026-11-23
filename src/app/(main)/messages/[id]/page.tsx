@@ -1,4 +1,3 @@
-// ПУТЬ: src/app/(main)/messages/[id]/page.tsx
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -11,6 +10,7 @@ import Avatar from "@/components/Avatar";
 import EmojiButton, { insertEmoji } from "@/components/EmojiButton";
 import EmojiText, { bigEmojiCount } from "@/components/EmojiText";
 import { checkImage, compressImage, imageExt } from "@/lib/images";
+import ImageViewer from "@/components/ImageViewer";
 import {
   MAX_LEN,
   MESSAGE_BUCKET,
@@ -23,7 +23,7 @@ import {
 
 const PAGE = 30;
 
-// на телефоне чат открывается поверх всего экрана, на компьютере встаёт в правый столбец
+
 const SHELL =
   "fixed inset-0 z-30 flex flex-col overflow-hidden bg-brand-soft md:relative md:inset-auto md:z-auto md:h-full md:rounded-xl md:border md:border-line";
 
@@ -49,6 +49,11 @@ export default function ChatPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [viewer, setViewer] = useState<{
+    images: string[];
+    start: number;
+    origin: DOMRect | null;
+  } | null>(null);
   const [error, setError] = useState("");
 
   const listRef = useRef<HTMLDivElement>(null);
@@ -113,7 +118,7 @@ export default function ChatPage() {
     load();
   }, [load]);
 
-  // новые и прочитанные сообщения приходят сразу
+  
   useEffect(() => {
     const channel = supabase
       .channel(`chat-${id}`)
@@ -273,6 +278,18 @@ export default function ChatPage() {
     window.dispatchEvent(new Event("msg-new"));
   }
 
+  function openImage(url: string, msgId: string) {
+    const images = messages.flatMap((x) =>
+      x.image_path && signed[x.image_path] ? [signed[x.image_path]] : []
+    );
+    const el = document.querySelector<HTMLElement>(`[data-msg-img="${msgId}"]`);
+    setViewer({
+      images,
+      start: Math.max(0, images.indexOf(url)),
+      origin: el ? el.getBoundingClientRect() : null,
+    });
+  }
+
   if (loading) {
     return (
       <div className={SHELL}>
@@ -349,7 +366,6 @@ export default function ChatPage() {
             next.sender_id !== m.sender_id ||
             dayLabel(next.created_at) !== dayLabel(m.created_at);
           const url = m.image_path ? signed[m.image_path] : null;
-          // 1–3 эмодзи без текста и картинки показываем крупно и без пузыря
           const big = !m.image_path ? bigEmojiCount(m.content ?? "") : 0;
           const BIG = ["", "h-16 w-16", "h-12 w-12", "h-10 w-10"][big];
           return (
@@ -373,14 +389,19 @@ export default function ChatPage() {
                 >
                   {m.image_path &&
                     (url ? (
-                      <a href={url} target="_blank" rel="noopener noreferrer">
-                        <img
-                          src={url}
-                          alt=""
-                          onLoad={stickToBottom}
-                          className="mb-1 max-h-72 w-64 max-w-full rounded-xl object-cover sm:w-72"
-                        />
-                      </a>
+                        <button
+                          type="button"
+                          data-msg-img={m.id}
+                          onClick={() => openImage(url, m.id)}
+                          className="block cursor-zoom-in"
+                        >
+                          <img
+                            src={url}
+                            alt=""
+                            onLoad={stickToBottom}
+                            className="mb-1 max-h-72 w-64 max-w-full rounded-xl object-cover sm:w-72"
+                          />
+                        </button>                        
                     ) : (
                       <div className="mb-1 h-40 w-64 max-w-full animate-pulse rounded-xl bg-brand-soft sm:w-72" />
                     ))}
@@ -462,7 +483,6 @@ export default function ChatPage() {
               e.target.style.height = `${e.target.scrollHeight}px`;
             }}
             onKeyDown={(e) => {
-              // на компьютере Enter отправляет, Shift+Enter переносит строку
               if (e.key === "Enter" && !e.shiftKey && window.matchMedia("(pointer: fine)").matches) {
                 e.preventDefault();
                 send();
@@ -490,6 +510,15 @@ export default function ChatPage() {
           }}
         />
       </form>
+
+        {viewer && (
+          <ImageViewer
+            images={viewer.images}
+            start={viewer.start}
+            origin={viewer.origin}
+            onClose={() => setViewer(null)}
+          />
+        )}
     </div>
   );
 }

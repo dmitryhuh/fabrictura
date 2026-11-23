@@ -1,10 +1,18 @@
-// ПУТЬ: src/components/AppShell.tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, Search, Bell, MessageCircle, DoorOpen } from "lucide-react";
+import {
+  Building2,
+  Search,
+  Bell,
+  MessageCircle,
+  DoorOpen,
+  Wallet,
+  Settings,
+  ShieldCheck,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import Avatar from "@/components/Avatar";
@@ -17,7 +25,6 @@ type Item = {
   label: string;
   icon?: LucideIcon;
   avatar?: boolean;
-  soon?: boolean;
   badge?: number;
 };
 
@@ -37,6 +44,9 @@ const NOTIF_TEXT: Record<string, string> = {
   comment_like: "оценил(а) ваш комментарий",
 };
 
+
+const EDIT_PATHS = ["/account/info", "/account/appearance", "/account/security"];
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -44,6 +54,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [unread, setUnread] = useState(0);
   const [unreadMsgs, setUnreadMsgs] = useState(0);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const myId = me?.id;
   const pathRef = useRef(pathname);
@@ -70,6 +81,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!myId) return;
+    supabase.rpc("is_admin").then(({ data }) => setIsAdmin(data === true));
+  }, [myId]);
 
   const refreshUnread = useCallback(async () => {
     if (!myId) return;
@@ -101,7 +117,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, [refreshUnread, refreshUnreadMessages, pathname]);
 
-  // новые уведомления и сообщения приходят сразу (один канал на всё)
+  
   useEffect(() => {
     if (!myId) return;
     const channel = supabase
@@ -151,7 +167,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           refreshUnreadMessages();
           window.dispatchEvent(new Event("msg-new"));
 
-          // если этот чат уже открыт, попап не нужен
+          
           const href = `/messages/${m.conversation_id}`;
           if (pathRef.current === href) return;
 
@@ -203,20 +219,48 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const name = me.display_name || me.username;
-  // сообщения занимают больше места, чем остальные страницы
+  
   const wide = pathname.startsWith("/messages");
+  const profileHref = `/u/${me.username}`;
 
-  const items: Item[] = [
+  const base: Item[] = [
     { key: "feed", href: "/feed", label: "Лента", icon: Building2 },
     { key: "search", href: "/search", label: "Поиск", icon: Search },
     { key: "chats", href: "/messages", label: "Чаты", icon: MessageCircle, badge: unreadMsgs },
     { key: "notifications", href: "/notifications", label: "Уведомления", icon: Bell, badge: unread },
-    { key: "profile", href: `/u/${me.username}`, label: "Профиль", avatar: true },
   ];
 
-  function isActive(it: Item) {
-    if (it.soon) return false;
-    return it.key === "chats" ? pathname.startsWith("/messages") : pathname === it.href;
+  
+  const desktopItems: Item[] = [
+    ...base,
+    { key: "wallet", href: "/account/wallet", label: "Кошелёк", icon: Wallet },
+    { key: "settings", href: "/account/settings", label: "Настройки", icon: Settings },
+    ...(isAdmin
+      ? [{ key: "admin", href: "/admin", label: "Админка", icon: ShieldCheck }]
+      : []),
+    { key: "profile", href: profileHref, label: "Профиль", avatar: true },
+  ];
+
+  
+  const mobileItems: Item[] = [
+    ...base,
+    { key: "profile", href: "/account", label: "Аккаунт", avatar: true },
+  ];
+
+  function isActive(it: Item, mobile: boolean) {
+    if (it.key === "chats") return pathname.startsWith("/messages");
+    if (it.key === "admin") return pathname.startsWith("/admin");
+    if (it.key === "profile") {
+      if (mobile) {
+        return (
+          pathname.startsWith("/account") ||
+          pathname.startsWith("/admin") ||
+          pathname === profileHref
+        );
+      }
+      return pathname === profileHref || EDIT_PATHS.some((p) => pathname.startsWith(p));
+    }
+    return pathname === it.href;
   }
 
   function glyph(it: Item, size: number, active: boolean) {
@@ -251,6 +295,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         refreshUnread,
         unreadMessages: unreadMsgs,
         refreshUnreadMessages,
+        isAdmin,
       }}
     >
       <div className="min-h-screen bg-canvas text-ink">
@@ -270,32 +315,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Левая колонка (компьютер) */}
         <aside className="fixed left-3 top-1/2 z-20 hidden -translate-y-1/2 flex-col items-stretch rounded-xl border border-line bg-white p-2 md:flex xl:w-56">
-          <Link
-            href="/feed"
-            className="mb-2 flex w-full items-center justify-center py-3"
-          >
+          <Link href="/feed" className="mb-2 flex w-full items-center justify-center py-3">
             <Logo size={30} />
           </Link>
 
           <nav className="flex flex-col gap-1">
-            {items.map((it) => {
-              const active = isActive(it);
-              const label = <span className="hidden xl:inline">{it.label}</span>;
-              if (it.soon) {
-                return (
-                  <div
-                    key={it.key}
-                    title={`${it.label} (скоро)`}
-                    className={`${row} cursor-default text-muted opacity-60`}
-                  >
-                    {glyph(it, 24, false)}
-                    {label}
-                    <span className="ml-auto hidden rounded-full bg-canvas px-2 py-0.5 text-[10px] uppercase tracking-wide xl:inline">
-                      скоро
-                    </span>
-                  </div>
-                );
-              }
+            {desktopItems.map((it) => {
+              const active = isActive(it, false);
               return (
                 <Link
                   key={it.key}
@@ -306,7 +332,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   }`}
                 >
                   {glyph(it, 24, active)}
-                  {label}
+                  <span className="hidden xl:inline">{it.label}</span>
                 </Link>
               );
             })}
@@ -325,12 +351,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className={wide ? "md:pl-20 md:pr-4 xl:pl-64" : "md:px-20 xl:px-64"}>
-          {/* Верхняя полоса (телефон) */}
-          <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-line bg-white/90 px-4 backdrop-blur md:hidden">
+          {/* Верхняя полоса (телефон): выход теперь в меню аккаунта */}
+          <header className="sticky top-0 z-10 flex h-14 items-center justify-center border-b border-line bg-white/90 px-4 backdrop-blur md:hidden">
             <Logo size={28} />
-            <button onClick={logout} aria-label="Выйти" className="text-muted">
-              <DoorOpen size={22} />
-            </button>
           </header>
 
           <main
@@ -346,23 +369,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Нижняя панель (телефон) */}
         <nav className="fixed inset-x-0 bottom-0 z-20 flex justify-around border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-          {items
-            .filter((it) => !it.soon)
-            .map((it) => {
-              const active = isActive(it);
-              return (
-                <Link
-                  key={it.key}
-                  href={it.href}
-                  aria-label={it.label}
-                  className={`grid h-14 w-16 place-items-center ${
-                    active ? "text-ink" : "text-muted"
-                  }`}
-                >
-                  {glyph(it, 24, active)}
-                </Link>
-              );
-            })}
+          {mobileItems.map((it) => {
+            const active = isActive(it, true);
+            return (
+              <Link
+                key={it.key}
+                href={it.href}
+                aria-label={it.label}
+                className={`grid h-14 w-16 place-items-center ${
+                  active ? "text-ink" : "text-muted"
+                }`}
+              >
+                {glyph(it, 24, active)}
+              </Link>
+            );
+          })}
         </nav>
       </div>
     </MeContext.Provider>

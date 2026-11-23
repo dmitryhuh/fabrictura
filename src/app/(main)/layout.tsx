@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import AppShell from "@/components/AppShell";
 
+export const instant = false;
+
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <Suspense

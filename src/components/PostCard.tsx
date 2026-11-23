@@ -7,6 +7,7 @@ import { Bookmark, Heart, MessageSquare, Pencil, Repeat2, Trash2 } from "lucide-
 import Avatar from "@/components/Avatar";
 import EmojiText from "@/components/EmojiText";
 import { Post, timeAgo } from "@/lib/posts";
+import ImageViewer from "@/components/ImageViewer";
 
 type Props = {
   post: Post;
@@ -35,6 +36,8 @@ export default function PostCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [viewing, setViewing] = useState(false);
+  const [origin, setOrigin] = useState<DOMRect | null>(null);
 
   function startEdit() {
     setDraft(post.content);
@@ -133,12 +136,31 @@ export default function PostCard({
           )}
 
           {post.image_url && (
-            <img
-              src={post.image_url}
-              alt=""
-              loading="lazy"
-              className="mt-2 max-h-[32rem] w-full rounded-lg border border-line object-cover"
-            />
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  setOrigin(e.currentTarget.querySelector("img")?.getBoundingClientRect() ?? null);
+                  setViewing(true);
+                }}
+                aria-label="Открыть фото"
+                className="mt-2 block w-full cursor-zoom-in"
+              >
+                <img
+                  src={post.image_url}
+                  alt=""
+                  loading="lazy"
+                  className="aspect-square w-full rounded-xl border border-line object-cover sm:aspect-[3/2]"
+                />
+              </button>
+              {viewing && (
+                <ImageViewer
+                  images={[post.image_url]}
+                  origin={origin}
+                  onClose={() => setViewing(false)}
+                />
+              )}
+            </>
           )}
 
           <div className="-ml-2.5 mt-2 flex items-center">

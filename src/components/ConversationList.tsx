@@ -28,7 +28,6 @@ export default function ConversationList({ activeId }: { activeId: string | null
 
   useEffect(() => {
     load();
-    // AppShell сообщает о новых и прочитанных сообщениях
     window.addEventListener("msg-new", load);
     return () => window.removeEventListener("msg-new", load);
   }, [load]);

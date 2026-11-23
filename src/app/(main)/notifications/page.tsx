@@ -1,4 +1,3 @@
-// ПУТЬ: src/app/(main)/notifications/page.tsx
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
@@ -71,7 +70,7 @@ export default function NotificationsPage() {
     if (error) setError(error.message);
     else setItems((data ?? []) as unknown as Notif[]);
 
-    // непрочитанные личные сообщения: по одной строке на диалог
+    
     const { data: convs } = await supabase.rpc("conversation_list");
     setChats(
       ((convs ?? []) as ConversationItem[]).filter(

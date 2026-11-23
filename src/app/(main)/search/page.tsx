@@ -1,4 +1,3 @@
-// ПУТЬ: src/app/(main)/search/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,7 +12,7 @@ type Result = {
   display_name: string | null;
   avatar_url: string | null;
   bio: string | null;
-  via?: string; // найден по дополнительному логину
+  via?: string;
 };
 
 type AliasRow = { alias: string; profiles: Omit<Result, "via"> | null };

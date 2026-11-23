@@ -1,4 +1,3 @@
-// ПУТЬ: src/app/(main)/messages/page.tsx
 import { MessageCircle } from "lucide-react";
 
 export default function MessagesIndexPage() {

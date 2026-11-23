@@ -16,6 +16,7 @@ export const MeContext = createContext<{
   refreshUnread: () => Promise<void>;
   unreadMessages: number;
   refreshUnreadMessages: () => Promise<void>;
+  isAdmin: boolean;
 } | null>(null);
 
 export function useMe() {

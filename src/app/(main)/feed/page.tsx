@@ -1,4 +1,3 @@
-// ПУТЬ: src/app/(main)/feed/page.tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -214,7 +213,7 @@ export default function FeedPage() {
             <img
               src={preview}
               alt=""
-              className="max-h-80 w-full rounded-1g border border-line object-cover"
+              className="max-h-80 w-full rounded-lg border border-line object-cover"
             />
             <button
               type="button"
