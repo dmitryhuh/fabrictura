@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import Avatar from "@/components/Avatar";
+import { PageHead } from "@/components/AccountUi";
 import { timeAgo } from "@/lib/posts";
 import { MAX_STARS, fmtStars, starsError } from "@/lib/stars";
 
@@ -109,16 +109,11 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Link
-          href="/account"
-          aria-label="Назад"
-          className="grid h-9 w-9 place-items-center rounded-full text-muted transition hover:bg-brand-soft hover:text-ink"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-xl font-bold">Админка</h1>
-      </div>
+      <PageHead title="Админка" />
+
+      <Link href="/admin/gifts" className="btn-ghost inline-block">
+        Подарки →
+      </Link>
 
       <form onSubmit={submit} className="space-y-3 rounded-xl border border-line bg-white p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Звёзды пользователю</h2>
@@ -137,7 +132,11 @@ export default function AdminPage() {
         {target &&
           (target.profile ? (
             <div className="flex items-center gap-3 rounded-xl bg-brand-soft p-2.5">
-              <Avatar url={target.profile.avatar_url} name={target.profile.display_name || target.profile.username} size={36} />
+              <Avatar
+                url={target.profile.avatar_url}
+                name={target.profile.display_name || target.profile.username}
+                size={36}
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">{target.profile.display_name || target.profile.username}</p>
                 <p className="text-xs text-muted">Баланс: {fmtStars(target.balance)} ★</p>
@@ -187,10 +186,14 @@ export default function AdminPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border border-line bg-white">
           {log.map((r) => (
-            <div key={r.id} className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0">
+            <div
+              key={r.id}
+              className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 last:border-b-0"
+            >
               <div className="min-w-0">
                 <p className="truncate text-[15px]">
-                  @{r.target?.username ?? "?"} <span className="text-muted">· админ @{r.counterparty?.username ?? "?"}</span>
+                  @{r.target?.username ?? "?"}{" "}
+                  <span className="text-muted">· админ @{r.counterparty?.username ?? "?"}</span>
                 </p>
                 <p className="truncate text-xs text-muted">
                   {timeAgo(r.created_at)}

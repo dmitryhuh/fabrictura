@@ -45,3 +45,9 @@ body {
 }
 .step-forward { animation: step-in-right 0.35s ease both; }
 .step-back { animation: step-in-left 0.35s ease both; }
+
+@keyframes gift-reveal {
+  from { opacity: 0; transform: scale(0.8) rotate(-4deg); }
+  to   { opacity: 1; transform: none; }
+}
+.gift-reveal { animation: gift-reveal 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

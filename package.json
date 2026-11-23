@@ -6,11 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import-gift": "node --env-file=.env.local scripts/import-gift.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
+    "lottie-web": "^5.13.0",
     "lucide-react": "^1.72.0",
     "next": "16.4.6",
     "react": "19.3.0",

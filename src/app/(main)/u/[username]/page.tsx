@@ -8,10 +8,11 @@ import { supabase } from "@/lib/supabase/client";
 import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
+import EmojiText from "@/components/EmojiText";
+import ProfileGifts from "@/components/ProfileGifts";
 import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
 import { formatBirth } from "@/lib/birthday";
-import EmojiText from "@/components/EmojiText";
 
 type Profile = {
   id: string;
@@ -23,10 +24,10 @@ type Profile = {
   birth_date: string | null;
 };
 
-
+// одинаковый размер кнопок рядом с аватаркой (компьютер)
 const SIDE_BTN = "h-10 w-36 !px-0 !py-0 !text-sm";
 
-type Tab = "posts" | "reposts" | "saved";
+type Tab = "posts" | "reposts" | "saved" | "gifts";
 
 async function fromJoin(data: unknown, myId: string, markRepost = false): Promise<Post[]> {
   const rows = ((data ?? []) as { created_at: string; post: RawPost | null }[]).filter(
@@ -64,7 +65,7 @@ export default function ProfilePage() {
       .maybeSingle();
 
     if (!p) {
-      
+      // возможно, это дополнительный логин: ведём на профиль владельца
       const { data: al } = await supabase
         .from("profile_aliases")
         .select("profiles!user_id(username)")
@@ -128,7 +129,7 @@ export default function ProfilePage() {
     load();
   }, [load]);
 
-  
+  // лайки и удаление меняют пост сразу во всех вкладках
   const setAll: Dispatch<SetStateAction<Post[]>> = useCallback((action) => {
     const apply = (prev: Post[]) => (typeof action === "function" ? action(prev) : action);
     setPosts(apply);
@@ -198,9 +199,11 @@ export default function ProfilePage() {
     { key: "posts", label: "Публикации" },
     { key: "reposts", label: "Репосты" },
     ...(isMe ? [{ key: "saved" as Tab, label: "Избранное" }] : []),
+    { key: "gifts", label: "Подарки" },
   ];
   const current = tab === "saved" && !isMe ? "posts" : tab;
-  const list = current === "posts" ? posts : current === "reposts" ? reposts : saved;
+  const list =
+    current === "posts" ? posts : current === "reposts" ? reposts : current === "saved" ? saved : [];
   const emptyText =
     current === "posts"
       ? "Публикаций пока нет."
@@ -222,15 +225,19 @@ export default function ProfilePage() {
       <section className="overflow-hidden rounded-xl border border-line bg-white">
         <div className="h-36 bg-linear-to-r from-brand to-brand-deep sm:h-48">
           {profile.cover_url && (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={profile.cover_url} alt="" className="h-full w-full object-cover" />
           )}
         </div>
+
         <div className="px-6 pb-6">
           <div className="-mt-14 flex items-end justify-between">
             <div className="rounded-full ring-4 ring-white">
               <Avatar url={profile.avatar_url} name={name} size={112} />
             </div>
+
             {isMe ? (
+              // редактирование только на компьютере; на телефоне есть меню аккаунта
               <Link href="/account/info" className="btn-ghost hidden md:inline-block">
                 Редактировать
               </Link>
@@ -254,7 +261,9 @@ export default function ProfilePage() {
           )}
 
           <div className="mt-4">
-            <h1 className="text-2xl font-bold">{name}</h1>
+            <h1 className="text-2xl font-bold">
+              <EmojiText text={name} />
+            </h1>
             <p className="text-muted">@{profile.username}</p>
             {aliases.length > 0 && (
               <p className="text-sm text-muted">
@@ -267,7 +276,11 @@ export default function ProfilePage() {
                 ))}
               </p>
             )}
-            {profile.bio && <p className="mt-3 whitespace-pre-wrap text-[17px]"><EmojiText text={profile.bio} /></p>}
+            {profile.bio && (
+              <p className="mt-3 whitespace-pre-wrap text-[17px]">
+                <EmojiText text={profile.bio} />
+              </p>
+            )}
             {profile.birth_date && (
               <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
                 <Cake size={16} />
@@ -307,7 +320,13 @@ export default function ProfilePage() {
         </p>
       )}
 
-      {list.length === 0 && <p className="py-8 text-center text-muted">{emptyText}</p>}
+      {current === "gifts" && (
+        <ProfileGifts profileId={profile.id} username={profile.username} isMe={isMe} />
+      )}
+
+      {current !== "gifts" && list.length === 0 && (
+        <p className="py-8 text-center text-muted">{emptyText}</p>
+      )}
 
       {list.map((post) => (
         <PostCard
