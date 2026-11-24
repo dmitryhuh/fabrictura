@@ -13,6 +13,8 @@ import {
 } from "@/lib/gifts";
 import { fmtStars, starsError } from "@/lib/stars";
 
+const LABEL = "text-xs font-semibold uppercase tracking-wide text-muted";
+
 function Row({ c, onSaved }: { c: Collection; onSaved: () => void }) {
   const [price, setPrice] = useState(String(c.price));
   const [upg, setUpg] = useState(String(c.upgrade_price));
@@ -20,6 +22,7 @@ function Row({ c, onSaved }: { c: Collection; onSaved: () => void }) {
   const [active, setActive] = useState(c.active);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const d = Number(delta) || 0;
 
   async function save() {
     setBusy(true);
@@ -28,7 +31,7 @@ function Row({ c, onSaved }: { c: Collection; onSaved: () => void }) {
       p_collection: c.id,
       p_price: Number(price),
       p_upgrade_price: Number(upg),
-      p_stock_delta: Number(delta || 0),
+      p_stock_delta: d,
       p_active: active,
     });
     setBusy(false);
@@ -46,7 +49,7 @@ function Row({ c, onSaved }: { c: Collection; onSaved: () => void }) {
   }
 
   return (
-    <div className="space-y-3 rounded-xl border border-line bg-white p-4">
+    <div className="space-y-4 rounded-xl border border-line bg-white p-4">
       <div className="flex items-center justify-between gap-2">
         <h2 className="font-semibold">{c.name}</h2>
         <label className="flex items-center gap-2 text-sm">
@@ -54,33 +57,66 @@ function Row({ c, onSaved }: { c: Collection; onSaved: () => void }) {
           В продаже
         </label>
       </div>
-      <p className="text-xs text-muted">
-        Тираж {fmtStars(c.supply)} · продано {fmtStars(c.sold)} · остаток{" "}
-        {fmtStars(c.supply - c.sold)} · прокачано {fmtStars(c.upgraded)}
-      </p>
-      <div className="grid grid-cols-3 gap-2">
+
+      <div className="grid grid-cols-4 gap-2 text-center">
+        {(
+          [
+            ["Тираж", c.supply],
+            ["Продано", c.sold],
+            ["Остаток", c.supply - c.sold],
+            ["Прокачано", c.upgraded],
+          ] as const
+        ).map(([l, v]) => (
+          <div key={l} className="rounded-xl bg-brand-soft py-2">
+            <p className="text-[11px] text-muted">{l}</p>
+            <p className="font-semibold">{fmtStars(v)}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="space-y-1">
+          <span className={LABEL}>Цена, ★</span>
+          <input
+            className="input"
+            inputMode="numeric"
+            value={price}
+            onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))}
+          />
+        </label>
+        <label className="space-y-1">
+          <span className={LABEL}>Прокачка, ★</span>
+          <input
+            className="input"
+            inputMode="numeric"
+            value={upg}
+            onChange={(e) => setUpg(e.target.value.replace(/\D/g, ""))}
+          />
+        </label>
+      </div>
+
+      <div className="space-y-1.5">
+        <span className={LABEL}>Добавить в тираж</span>
+        <div className="flex flex-wrap gap-2">
+          {[10, 100, 1000].map((n) => (
+            <button key={n} type="button" className="btn-ghost" onClick={() => setDelta(String(d + n))}>
+              +{n}
+            </button>
+          ))}
+          <button type="button" className="btn-ghost" onClick={() => setDelta("")}>
+            Сброс
+          </button>
+        </div>
         <input
           className="input"
           inputMode="numeric"
-          placeholder="Цена"
-          value={price}
-          onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))}
-        />
-        <input
-          className="input"
-          inputMode="numeric"
-          placeholder="Прокачка"
-          value={upg}
-          onChange={(e) => setUpg(e.target.value.replace(/\D/g, ""))}
-        />
-        <input
-          className="input"
-          inputMode="numeric"
-          placeholder="± сток"
+          placeholder="Своё число (можно с минусом)"
           value={delta}
           onChange={(e) => setDelta(e.target.value.replace(/[^\d-]/g, ""))}
         />
+        {d !== 0 && <p className="text-xs text-muted">Новый тираж: {fmtStars(c.supply + d)}</p>}
       </div>
+
       {msg && <p className="text-sm text-muted">{msg}</p>}
       <button onClick={save} disabled={busy || !price || !upg} className="btn-primary w-full py-2.5">
         {busy ? "Сохраняем..." : "Сохранить"}
@@ -257,6 +293,7 @@ function GiveGift({ cols }: { cols: Collection[] }) {
 export default function AdminGiftsPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [cols, setCols] = useState<Collection[]>([]);
+  const [sel, setSel] = useState("");
 
   const load = useCallback(async () => {
     const { data } = await supabase
@@ -276,18 +313,28 @@ export default function AdminGiftsPage() {
   if (allowed === null) return <p className="py-16 text-center text-muted">Загрузка...</p>;
   if (!allowed) return <p className="py-16 text-center text-muted">Нет доступа.</p>;
 
+  const cur = cols.find((c) => c.id === sel) ?? cols[0];
+
   return (
     <div className="space-y-4">
       <PageHead title="Подарки" />
       <p className="text-sm text-muted">
         Новый подарок добавляется командой <code>npm run import-gift -- &quot;Название&quot;</code>, потом
-        здесь выставляете цену, тираж и включаете продажу. Поле «± сток» добавляет к тиражу (можно с
-        минусом).
+        здесь выставляете цену, тираж и включаете продажу.
       </p>
       {cols.length === 0 && <p className="py-8 text-center text-muted">Подарков ещё нет.</p>}
-      {cols.map((c) => (
-        <Row key={c.id} c={c} onSaved={load} />
-      ))}
+      {cur && (
+        <>
+          <select className="input" value={cur.id} onChange={(e) => setSel(e.target.value)}>
+            {cols.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} · остаток {fmtStars(c.supply - c.sold)}
+              </option>
+            ))}
+          </select>
+          <Row key={cur.id} c={cur} onSaved={load} />
+        </>
+      )}
       {cols.length > 0 && <GiveGift cols={cols} />}
     </div>
   );

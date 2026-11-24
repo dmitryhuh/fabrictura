@@ -35,5 +35,7 @@ export function starsError(msg: string) {
   if (m.includes("gift_not_found")) return "Подарок не найден";
   if (m.includes("already_upgraded")) return "Подарок уже прокачан";
   if (m.includes("no_models")) return "У подарка нет моделей";
+  if (m.includes("gift_hidden")) return "Скрытый подарок нельзя закрепить";
+  if (m.includes("not_your_gift")) return "Это не ваш подарок";
   return msg;
 }

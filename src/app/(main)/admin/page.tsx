@@ -22,6 +22,52 @@ type LogRow = {
   counterparty: { username: string } | null;
 };
 
+function VerifyForm() {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  async function set(value: boolean) {
+    setBusy(true);
+    setError("");
+    setOk("");
+    const { error } = await supabase.rpc("admin_set_verified", { p_username: name, p_value: value });
+    setBusy(false);
+    if (error) {
+      setError(starsError(error.message));
+      return;
+    }
+    setOk(value ? `Галочка выдана @${name}` : `Галочка снята с @${name}`);
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-line bg-white p-4">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Галочка</h2>
+      <div className="relative">
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted">@</span>
+        <input
+          className="input pl-9"
+          placeholder="Юзернейм"
+          maxLength={20}
+          value={name}
+          onChange={(e) => setName(e.target.value.toLowerCase().replace(/[\s@]/g, ""))}
+        />
+      </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      {ok && <p className="text-sm text-green-600">{ok}</p>}
+      <div className="grid grid-cols-2 gap-2">
+        <button disabled={busy || !name} onClick={() => set(true)} className="btn-primary !py-2.5 text-sm">
+          Выдать
+        </button>
+        <button disabled={busy || !name} onClick={() => set(false)} className="btn-ghost">
+          Снять
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
   const [username, setUsername] = useState("");
@@ -114,6 +160,8 @@ export default function AdminPage() {
       <Link href="/admin/gifts" className="btn-ghost inline-block">
         Подарки →
       </Link>
+
+      <VerifyForm />
 
       <form onSubmit={submit} className="space-y-3 rounded-xl border border-line bg-white p-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Звёзды пользователю</h2>

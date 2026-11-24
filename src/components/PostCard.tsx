@@ -1,4 +1,3 @@
-// ПУТЬ: src/components/PostCard.tsx
 "use client";
 
 import { useState } from "react";
@@ -6,6 +5,8 @@ import Link from "next/link";
 import { Bookmark, Heart, MessageSquare, Pencil, Repeat2, Trash2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import EmojiText from "@/components/EmojiText";
+import NameBadges from "@/components/NameBadges";
+import GiftModal from "@/components/GiftModal";
 import { Post, timeAgo } from "@/lib/posts";
 import ImageViewer from "@/components/ImageViewer";
 
@@ -38,6 +39,7 @@ export default function PostCard({
   const [saving, setSaving] = useState(false);
   const [viewing, setViewing] = useState(false);
   const [origin, setOrigin] = useState<DOMRect | null>(null);
+  const [giftOpen, setGiftOpen] = useState<string | null>(null);
 
   function startEdit() {
     setDraft(post.content);
@@ -71,15 +73,26 @@ export default function PostCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <Link href={`/u/${username}`} className="min-w-0 truncate">
-              <span className="font-semibold hover:underline">{name}</span>
-              <span className="text-sm text-muted">
-                {" "}@{username} · {timeAgo(post.created_at)}
+            <div className="flex min-w-0 items-center gap-1">
+              <Link
+                href={`/u/${username}`}
+                className="max-w-[45%] shrink-0 truncate font-semibold hover:underline"
+              >
+                {name}
+              </Link>
+              <NameBadges
+                verified={post.profiles?.verified}
+                gift={post.profiles?.pinned}
+                size={16}
+                onGift={setGiftOpen}
+              />
+              <Link href={`/u/${username}`} className="min-w-0 truncate text-sm text-muted">
+                @{username} · {timeAgo(post.created_at)}
                 {post.edited_at && " · изменено"}
-              </span>
-            </Link>
+              </Link>
+            </div>
             {post.author_id === myId && (
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-3">
                 {!editing && (
                   <button
                     onClick={startEdit}
@@ -146,6 +159,7 @@ export default function PostCard({
                 aria-label="Открыть фото"
                 className="mt-2 block w-full cursor-zoom-in"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={post.image_url}
                   alt=""
@@ -192,6 +206,7 @@ export default function PostCard({
           </div>
         </div>
       </div>
+      {giftOpen && <GiftModal giftId={giftOpen} onClose={() => setGiftOpen(null)} />}
     </article>
   );
 }

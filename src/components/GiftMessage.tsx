@@ -26,7 +26,7 @@ export default function GiftMessage({ giftId, mine, onOpen }: Props) {
   }, [giftId]);
 
   return (
-    <button type="button" onClick={() => onOpen(giftId)} className="block w-44 text-left">
+    <button type="button" onClick={() => onOpen(giftId)} className="block w-44 text-center">
       <p className="mb-1 text-[13px] opacity-80">
         {mine ? "Вы передали подарок" : "Вам передали подарок"}
       </p>

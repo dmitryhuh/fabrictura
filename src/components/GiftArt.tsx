@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { AnimationItem } from "lottie-web";
 import { GiftBackdrop, GiftModel, GiftPattern, giftUrl } from "@/lib/gifts";
-import { PATTERN_PATHS, PATTERN_POINTS } from "@/lib/giftPatterns";
+import { PATTERN_POINTS } from "@/lib/giftPatterns"
 
 async function loadLottie() {
   return (await import("lottie-web/build/player/lottie_light")).default;
@@ -61,46 +61,27 @@ function snapshot(path: string): Promise<string | null> {
 // Узор: PNG красится в цвет узора фона (как в Telegram), без PNG рисуются запасные фигуры
 function PatternLayer({ backdrop, pattern }: { backdrop: GiftBackdrop; pattern: GiftPattern }) {
   const id = "pm" + useId().replace(/[^a-zA-Z0-9]/g, "");
-
-  if (pattern.png_path) {
-    const href = giftUrl(pattern.png_path);
-    return (
-      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-        <defs>
-          <mask id={id} style={{ maskType: "alpha" }}>
-            {PATTERN_POINTS.map((p, i) => (
-              <image
-                key={i}
-                href={href}
-                x={-p.s / 2}
-                y={-p.s / 2}
-                width={p.s}
-                height={p.s}
-                opacity={p.o}
-                transform={`translate(${p.x} ${p.y}) rotate(${p.rot})`}
-              />
-            ))}
-          </mask>
-        </defs>
-        <rect width="100" height="100" fill={backdrop.pattern_color} mask={`url(#${id})`} />
-      </svg>
-    );
-  }
-
-  const d = PATTERN_PATHS[pattern.key];
-  if (!d) return null;
+  if (!pattern.png_path) return null;
+  const href = giftUrl(pattern.png_path);
   return (
     <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-      <g fill={backdrop.pattern_color} fillRule="evenodd">
-        {PATTERN_POINTS.map((p, i) => (
-          <path
-            key={i}
-            d={d}
-            opacity={p.o}
-            transform={`translate(${p.x} ${p.y}) rotate(${p.rot}) scale(${p.s / 24}) translate(-12 -12)`}
-          />
-        ))}
-      </g>
+      <defs>
+        <mask id={id} style={{ maskType: "alpha" }}>
+          {PATTERN_POINTS.map((p, i) => (
+            <image
+              key={i}
+              href={href}
+              x={-p.s / 2}
+              y={-p.s / 2}
+              width={p.s}
+              height={p.s}
+              opacity={p.o}
+              transform={`translate(${p.x} ${p.y}) rotate(${p.rot})`}
+            />
+          ))}
+        </mask>
+      </defs>
+      <rect width="100" height="100" fill={backdrop.pattern_color} mask={`url(#${id})`} />
     </svg>
   );
 }

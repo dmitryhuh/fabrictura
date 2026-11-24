@@ -25,7 +25,6 @@ import {
 
 const PAGE = 30;
 
-
 const SHELL =
   "fixed inset-0 z-30 flex flex-col overflow-hidden bg-brand-soft md:relative md:inset-auto md:z-auto md:h-full md:rounded-xl md:border md:border-line";
 
@@ -121,7 +120,6 @@ export default function ChatPage() {
     load();
   }, [load]);
 
-  
   useEffect(() => {
     const channel = supabase
       .channel(`chat-${id}`)
@@ -371,15 +369,32 @@ export default function ChatPage() {
           const url = m.image_path ? signed[m.image_path] : null;
           const big = !m.image_path ? bigEmojiCount(m.content ?? "") : 0;
           const BIG = ["", "h-16 w-16", "h-12 w-12", "h-10 w-10"][big];
+
+          const dayChip = newDay && (
+            <p className="my-3 flex justify-center">
+              <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-muted">
+                {dayLabel(m.created_at)}
+              </span>
+            </p>
+          );
+
+          if (m.gift_id) {
+            return (
+              <div key={m.id}>
+                {dayChip}
+                <div className="my-3 flex justify-center">
+                  <div className="rounded-2xl bg-black/30 p-2.5 text-white backdrop-blur-md">
+                    <GiftMessage giftId={m.gift_id} mine={mine} onOpen={setGiftOpen} />
+                    <p className="mt-1 text-right text-[11px] text-white/70">{clock(m.created_at)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div key={m.id}>
-              {newDay && (
-                <p className="my-3 flex justify-center">
-                  <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-muted">
-                    {dayLabel(m.created_at)}
-                  </span>
-                </p>
-              )}
+              {dayChip}
               <div className={`flex ${mine ? "justify-end" : "justify-start"} ${first ? "mt-2" : "mt-0.5"}`}>
                 <div
                   className={`max-w-[80%] rounded-2xl ${big ? "px-1" : "px-3 py-1.5"} ${
@@ -390,27 +405,26 @@ export default function ChatPage() {
                       : `border border-line bg-white ${last ? "rounded-bl-sm" : ""}`
                   }`}
                 >
-                  {m.gift_id && <GiftMessage giftId={m.gift_id} mine={mine} onOpen={setGiftOpen} />}
-
                   {m.image_path &&
                     (url ? (
-                        <button
-                          type="button"
-                          data-msg-img={m.id}
-                          onClick={() => openImage(url, m.id)}
-                          className="block cursor-zoom-in"
-                        >
-                          <img
-                            src={url}
-                            alt=""
-                            onLoad={stickToBottom}
-                            className="mb-1 max-h-72 w-64 max-w-full rounded-xl object-cover sm:w-72"
-                          />
-                        </button>                        
+                      <button
+                        type="button"
+                        data-msg-img={m.id}
+                        onClick={() => openImage(url, m.id)}
+                        className="block cursor-zoom-in"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={url}
+                          alt=""
+                          onLoad={stickToBottom}
+                          className="mb-1 max-h-72 w-64 max-w-full rounded-xl object-cover sm:w-72"
+                        />
+                      </button>
                     ) : (
                       <div className="mb-1 h-40 w-64 max-w-full animate-pulse rounded-xl bg-brand-soft sm:w-72" />
                     ))}
-                  {m.content && !m.gift_id &&
+                  {m.content &&
                     (big ? (
                       <p className="leading-none">
                         <EmojiText
@@ -443,12 +457,10 @@ export default function ChatPage() {
         })}
       </div>
 
-      <form
-        onSubmit={send}
-        className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1"
-      >
+      <form onSubmit={send} className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
         {preview && (
           <div className="relative mb-2 inline-block rounded-xl border border-line bg-white p-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={preview} alt="" className="h-20 rounded-lg object-cover" />
             <button
               type="button"
@@ -515,17 +527,17 @@ export default function ChatPage() {
           }}
         />
       </form>
-        
+
       {giftOpen && <GiftModal giftId={giftOpen} onClose={() => setGiftOpen(null)} />}
 
-        {viewer && (
-          <ImageViewer
-            images={viewer.images}
-            start={viewer.start}
-            origin={viewer.origin}
-            onClose={() => setViewer(null)}
-          />
-        )}
+      {viewer && (
+        <ImageViewer
+          images={viewer.images}
+          start={viewer.start}
+          origin={viewer.origin}
+          onClose={() => setViewer(null)}
+        />
+      )}
     </div>
   );
 }

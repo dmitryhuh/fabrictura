@@ -9,7 +9,10 @@ import { useMe } from "@/components/MeContext";
 import Avatar from "@/components/Avatar";
 import PostCard from "@/components/PostCard";
 import EmojiText from "@/components/EmojiText";
+import NameBadges from "@/components/NameBadges";
+import GiftModal from "@/components/GiftModal";
 import ProfileGifts from "@/components/ProfileGifts";
+import { PINNED_SELECT, PinnedGift } from "@/lib/gifts";
 import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
 import { formatBirth } from "@/lib/birthday";
@@ -22,6 +25,8 @@ type Profile = {
   cover_url: string | null;
   bio: string | null;
   birth_date: string | null;
+  verified: boolean;
+  pinned: PinnedGift | null;
 };
 
 // одинаковый размер кнопок рядом с аватаркой (компьютер)
@@ -55,14 +60,18 @@ export default function ProfilePage() {
   const [following, setFollowing] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [aliases, setAliases] = useState<string[]>([]);
+  const [giftOpen, setGiftOpen] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const { data: p } = await supabase
+    const { data: raw } = await supabase
       .from("profiles")
-      .select("id, username, display_name, avatar_url, cover_url, bio, birth_date")
+      .select(
+        `id, username, display_name, avatar_url, cover_url, bio, birth_date, verified, ${PINNED_SELECT}`
+      )
       .eq("username", username)
       .maybeSingle();
+    const p = raw as unknown as Profile | null;
 
     if (!p) {
       // возможно, это дополнительный логин: ведём на профиль владельца
@@ -261,8 +270,16 @@ export default function ProfilePage() {
           )}
 
           <div className="mt-4">
-            <h1 className="text-2xl font-bold">
-              <EmojiText text={name} />
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
+              <span className="min-w-0 truncate">
+                <EmojiText text={name} />
+              </span>
+              <NameBadges
+                verified={profile.verified}
+                gift={profile.pinned}
+                size={22}
+                onGift={setGiftOpen}
+              />
             </h1>
             <p className="text-muted">@{profile.username}</p>
             {aliases.length > 0 && (
@@ -327,6 +344,7 @@ export default function ProfilePage() {
           name={name}
           avatarUrl={profile.avatar_url}
           isMe={isMe}
+          onChanged={load}
         />
       )}
 
@@ -346,6 +364,10 @@ export default function ProfilePage() {
           onEdit={editPost}
         />
       ))}
+
+      {giftOpen && (
+        <GiftModal giftId={giftOpen} onClose={() => setGiftOpen(null)} onChanged={load} />
+      )}
     </div>
   );
 }
