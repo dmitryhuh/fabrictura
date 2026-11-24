@@ -11,6 +11,8 @@ import EmojiButton, { insertEmoji } from "@/components/EmojiButton";
 import EmojiText, { bigEmojiCount } from "@/components/EmojiText";
 import { checkImage, compressImage, imageExt } from "@/lib/images";
 import ImageViewer from "@/components/ImageViewer";
+import GiftMessage from "@/components/GiftMessage";
+import GiftModal from "@/components/GiftModal";
 import {
   MAX_LEN,
   MESSAGE_BUCKET,
@@ -49,6 +51,7 @@ export default function ChatPage() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [giftOpen, setGiftOpen] = useState<string | null>(null);
   const [viewer, setViewer] = useState<{
     images: string[];
     start: number;
@@ -387,6 +390,8 @@ export default function ChatPage() {
                       : `border border-line bg-white ${last ? "rounded-bl-sm" : ""}`
                   }`}
                 >
+                  {m.gift_id && <GiftMessage giftId={m.gift_id} mine={mine} onOpen={setGiftOpen} />}
+
                   {m.image_path &&
                     (url ? (
                         <button
@@ -405,7 +410,7 @@ export default function ChatPage() {
                     ) : (
                       <div className="mb-1 h-40 w-64 max-w-full animate-pulse rounded-xl bg-brand-soft sm:w-72" />
                     ))}
-                  {m.content &&
+                  {m.content && !m.gift_id &&
                     (big ? (
                       <p className="leading-none">
                         <EmojiText
@@ -510,6 +515,8 @@ export default function ChatPage() {
           }}
         />
       </form>
+        
+      {giftOpen && <GiftModal giftId={giftOpen} onClose={() => setGiftOpen(null)} />}
 
         {viewer && (
           <ImageViewer

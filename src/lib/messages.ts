@@ -1,10 +1,11 @@
 import { supabase } from "@/lib/supabase/client";
 
+
 export const MESSAGE_BUCKET = "message-images";
 export const MAX_LEN = 2000;
 
 export const MESSAGE_COLUMNS =
-  "id, conversation_id, sender_id, recipient_id, content, image_path, created_at, read_at";
+  "id, conversation_id, sender_id, recipient_id, content, image_path, created_at, read_at, gift_id";
 
 export type Message = {
   id: string;
@@ -15,6 +16,8 @@ export type Message = {
   image_path: string | null;
   created_at: string;
   read_at: string | null;
+  gift_id: string | null;
+
 };
 
 // строка из функции conversation_list()

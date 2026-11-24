@@ -10,6 +10,7 @@ export type GiftBackdrop = {
   pattern_color: string;
   text_color: string;
 };
+export type GiftPattern = { id: number; key: string; name: string; png_path: string | null };
 export type Collection = {
   id: string;
   name: string;
@@ -31,6 +32,7 @@ export type UserGift = {
   collection: Collection;
   model: GiftModel | null;
   backdrop: GiftBackdrop | null;
+  pattern: GiftPattern | null;
   sender: { username: string; display_name: string | null } | null;
   owner: { username: string; display_name: string | null } | null;
 };
@@ -43,6 +45,7 @@ export const GIFT_SELECT = [
   `collection:gift_collections!collection_id(${COLLECTION_SELECT})`,
   "model:gift_models!model_id(id, name, lottie_path, png_path)",
   "backdrop:gift_backdrops!backdrop_id(id, name, center_color, edge_color, pattern_color, text_color)",
+  "pattern:gift_patterns!pattern_id(id, key, name, png_path)",
   "sender:profiles!sender_id(username, display_name)",
   "owner:profiles!owner_id(username, display_name)",
 ].join(", ");

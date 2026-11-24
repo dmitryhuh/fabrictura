@@ -321,7 +321,13 @@ export default function ProfilePage() {
       )}
 
       {current === "gifts" && (
-        <ProfileGifts profileId={profile.id} username={profile.username} isMe={isMe} />
+        <ProfileGifts
+          profileId={profile.id}
+          username={profile.username}
+          name={name}
+          avatarUrl={profile.avatar_url}
+          isMe={isMe}
+        />
       )}
 
       {current !== "gifts" && list.length === 0 && (
