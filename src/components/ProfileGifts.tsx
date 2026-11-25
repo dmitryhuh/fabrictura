@@ -93,8 +93,10 @@ export default function ProfileGifts({
                 </span>
               )}
               {g.hidden && (
-                <span className="absolute right-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-black/35 text-white">
-                  <EyeOff size={11} />
+                <span className="absolute inset-0 grid place-items-center bg-black/35 text-white">
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur-sm">
+                    <EyeOff size={20} />
+                  </span>
                 </span>
               )}
               <span

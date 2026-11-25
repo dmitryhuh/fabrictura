@@ -12,7 +12,7 @@ export type Post = {
     username: string;
     display_name: string | null;
     avatar_url: string | null;
-    verified: boolean; pinned: PinnedGift | null;
+    badge: Badge | null; pinned: PinnedGift | null;
   } | null;
   likes_count: number;
   comments_count: number;
@@ -40,7 +40,7 @@ export type RawPost = Omit<
   reposts: { count: number }[];
 };
 
-export const POST_SELECT = `id, content, created_at, edited_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url, verified, ${PINNED_SELECT}), likes(count), comments(count), reposts(count)`;
+export const POST_SELECT = `id, content, created_at, edited_at, author_id, image_url, profiles!author_id(username, display_name, avatar_url, badge, ${PINNED_SELECT}), likes(count), comments(count), reposts(count)`;
 
 // превращает посты из базы в готовые для показа и отмечает мои лайки, репосты и избранное
 export async function withLiked(rows: RawPost[], myId: string): Promise<Post[]> {

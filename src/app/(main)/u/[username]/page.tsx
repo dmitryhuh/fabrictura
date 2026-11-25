@@ -13,9 +13,9 @@ import NameBadges from "@/components/NameBadges";
 import GiftModal from "@/components/GiftModal";
 import ProfileGifts from "@/components/ProfileGifts";
 import { PINNED_SELECT, PinnedGift } from "@/lib/gifts";
-import { Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 import { usePostActions } from "@/lib/usePostActions";
 import { formatBirth } from "@/lib/birthday";
+import { Badge, Post, RawPost, POST_SELECT, withLiked } from "@/lib/posts";
 
 type Profile = {
   id: string;
@@ -25,7 +25,7 @@ type Profile = {
   cover_url: string | null;
   bio: string | null;
   birth_date: string | null;
-  verified: boolean;
+  badge: Badge | null;
   pinned: PinnedGift | null;
 };
 
@@ -67,7 +67,7 @@ export default function ProfilePage() {
     const { data: raw } = await supabase
       .from("profiles")
       .select(
-        `id, username, display_name, avatar_url, cover_url, bio, birth_date, verified, ${PINNED_SELECT}`
+        `id, username, display_name, avatar_url, cover_url, bio, birth_date, badge, ${PINNED_SELECT}`
       )
       .eq("username", username)
       .maybeSingle();
@@ -275,7 +275,7 @@ export default function ProfilePage() {
                 <EmojiText text={name} />
               </span>
               <NameBadges
-                verified={profile.verified}
+                badge={profile.badge}
                 gift={profile.pinned}
                 size={22}
                 onGift={setGiftOpen}

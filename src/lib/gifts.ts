@@ -44,6 +44,8 @@ export type PinnedGift = {
   collection: { base: GiftModel | null } | null;
 };
 
+export type Badge = "staff" | "official";
+
 export const COLLECTION_SELECT =
   "id, name, price, upgrade_price, supply, sold, upgraded, active, base:gift_models!base_model_id(id, name, lottie_path, png_path)";
 

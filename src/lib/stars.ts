@@ -37,5 +37,6 @@ export function starsError(msg: string) {
   if (m.includes("no_models")) return "У подарка нет моделей";
   if (m.includes("gift_hidden")) return "Скрытый подарок нельзя закрепить";
   if (m.includes("not_your_gift")) return "Это не ваш подарок";
+  if (m.includes("bad_badge")) return "Неверный тип галочки";
   return msg;
 }

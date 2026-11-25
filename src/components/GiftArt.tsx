@@ -9,6 +9,10 @@ async function loadLottie() {
   return (await import("lottie-web/build/player/lottie_light")).default;
 }
 
+async function loadCanvas() {
+  return (await import("lottie-web/build/player/lottie_canvas")).default;
+}
+
 // Снимки первого кадра для моделей без PNG: делаются по одному и запоминаются
 const snapshots = new Map<string, string>();
 let queue: Promise<unknown> = Promise.resolve();
@@ -140,14 +144,20 @@ export default function GiftArt({
     if (!animate || !path || !live.current) return;
     let dead = false;
     let anim = null as AnimationItem | null;
-    loadLottie().then((lottie) => {
+    loadCanvas().then((lottie) => {
       if (dead || !live.current) return;
+      const settings = {
+        clearCanvas: true,
+        progressiveLoad: true,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+      };
       anim = lottie.loadAnimation({
         container: live.current,
-        renderer: "svg",
+        renderer: "canvas",
         loop,
         autoplay: true,
         path: giftUrl(path),
+        rendererSettings: settings,
       });
       anim.addEventListener("DOMLoaded", () => setReadyPath(path));
     });

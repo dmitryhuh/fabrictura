@@ -28,17 +28,23 @@ function VerifyForm() {
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
 
-  async function set(value: boolean) {
+  async function set(badge: "staff" | "official" | null) {
     setBusy(true);
     setError("");
     setOk("");
-    const { error } = await supabase.rpc("admin_set_verified", { p_username: name, p_value: value });
+    const { error } = await supabase.rpc("admin_set_badge", { p_username: name, p_badge: badge });
     setBusy(false);
     if (error) {
       setError(starsError(error.message));
       return;
     }
-    setOk(value ? `Галочка выдана @${name}` : `Галочка снята с @${name}`);
+    setOk(
+      badge === "staff"
+        ? `Чёрная галочка выдана @${name}`
+        : badge === "official"
+        ? `Синяя галочка выдана @${name}`
+        : `Галочка снята с @${name}`
+    );
   }
 
   return (
@@ -56,11 +62,18 @@ function VerifyForm() {
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
       {ok && <p className="text-sm text-green-600">{ok}</p>}
-      <div className="grid grid-cols-2 gap-2">
-        <button disabled={busy || !name} onClick={() => set(true)} className="btn-primary !py-2.5 text-sm">
-          Выдать
+      <div className="grid grid-cols-3 gap-2">
+        <button disabled={busy || !name} onClick={() => set("staff")} className="btn-primary !px-2 !py-2.5 text-sm">
+          Чёрная
         </button>
-        <button disabled={busy || !name} onClick={() => set(false)} className="btn-ghost">
+        <button
+          disabled={busy || !name}
+          onClick={() => set("official")}
+          className="rounded-xl bg-sky-500 px-2 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-600 active:scale-[0.98] disabled:opacity-50"
+        >
+          Синяя
+        </button>
+        <button disabled={busy || !name} onClick={() => set(null)} className="btn-ghost !px-2">
           Снять
         </button>
       </div>
