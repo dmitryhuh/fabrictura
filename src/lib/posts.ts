@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase/client";
 import { PinnedGift, PINNED_SELECT } from "@/lib/gifts";
 
+export type Badge = "staff" | "official";
+
 export type Post = {
   id: string;
   content: string;

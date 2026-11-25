@@ -81,7 +81,7 @@ export default function PostCard({
                 {name}
               </Link>
               <NameBadges
-                verified={post.profiles?.verified}
+                badge={post.profiles?.badge}
                 gift={post.profiles?.pinned}
                 size={16}
                 onGift={setGiftOpen}
